@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import { MapPin, Camera } from 'lucide-react';
+import { MapPin } from 'lucide-react';
 import { fetchExactAddress } from '../utils/reverseGeocoding';
 import { getOSMTileUrl } from '../utils/mapTile';
 
@@ -72,10 +72,6 @@ export default function Overlay({ location, date, settings, compassHeading }) {
 
   return (
     <div className="overlay-container" id="gps-overlay">
-      <div className="badge-container">
-        <Camera size={12} /> GPS Map Camera
-      </div>
-      
       {settings.showMap && (
         <div className="overlay-left">
           {mapUrl ? (
