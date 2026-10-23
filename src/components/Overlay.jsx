@@ -1,25 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
 import { MapPin, Camera } from 'lucide-react';
-import { getOfflineAddress } from '../utils/offlineGeocoding';
+import { fetchExactAddress } from '../utils/reverseGeocoding';
 import { getOSMTileUrl } from '../utils/mapTile';
 
 export default function Overlay({ location, date, settings, compassHeading }) {
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState('');
   const [addressData, setAddressData] = useState({
-    title: 'Searching location...',
-    address: '...',
+    title: 'Acquiring GPS location...',
+    address: 'Resolving exact street address...',
     flag: '📍'
   });
   const [mapUrl, setMapUrl] = useState(null);
 
   const lat = location?.coords?.latitude;
   const lon = location?.coords?.longitude;
+  const accuracy = location?.coords?.accuracy ? Math.round(location.coords.accuracy) : null;
+  const altitude = location?.coords?.altitude ? Math.round(location.coords.altitude) : null;
 
   useEffect(() => {
     if (lat && lon) {
       if (settings.showMap) {
-        setMapUrl(getOSMTileUrl(lat, lon, 15));
+        setMapUrl(getOSMTileUrl(lat, lon, 16));
       }
 
       if (settings.showQRCode) {
@@ -30,20 +32,15 @@ export default function Overlay({ location, date, settings, compassHeading }) {
       }
 
       if (settings.showAddress) {
-        const offlineResult = getOfflineAddress(lat, lon);
-        if (offlineResult) {
-          setAddressData({
-            title: offlineResult.city + ', ' + offlineResult.state + ', ' + offlineResult.country,
-            address: offlineResult.formatted + ' (' + offlineResult.distanceStr + ')',
-            flag: offlineResult.country === 'India' ? '🇮🇳' : '📍'
-          });
-        } else {
-          setAddressData({
-            title: 'Unknown Location',
-            address: 'Location not in offline database',
-            flag: '📍'
-          });
-        }
+        let isMounted = true;
+        fetchExactAddress(lat, lon).then((res) => {
+          if (isMounted && res) {
+            setAddressData(res);
+          }
+        });
+        return () => {
+          isMounted = false;
+        };
       }
     }
   }, [lat, lon, settings.showQRCode, settings.showAddress, settings.showMap]);
@@ -67,7 +64,7 @@ export default function Overlay({ location, date, settings, compassHeading }) {
   };
 
   const getCompassDirection = (heading) => {
-    if (heading === null) return 'N/A';
+    if (heading === null || heading === undefined) return 'N/A';
     const val = Math.floor((heading / 22.5) + 0.5);
     const arr = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
     return arr[(val % 16)];
@@ -107,6 +104,8 @@ export default function Overlay({ location, date, settings, compassHeading }) {
         {settings.showCoords && (
           <div className="overlay-coords">
             Lat {lat ? lat.toFixed(6) : '...'}° Long {lon ? lon.toFixed(6) : '...'}°
+            {accuracy !== null && ` | Acc ±${accuracy}m`}
+            {altitude !== null && ` | Alt ${altitude}m`}
           </div>
         )}
         
@@ -116,7 +115,7 @@ export default function Overlay({ location, date, settings, compassHeading }) {
           </div>
         )}
 
-        {settings.showCompass && compassHeading !== null && (
+        {settings.showCompass && compassHeading !== null && compassHeading !== undefined && (
           <div className="overlay-compass">
             Compass: {Math.round(compassHeading)}° {getCompassDirection(compassHeading)}
           </div>

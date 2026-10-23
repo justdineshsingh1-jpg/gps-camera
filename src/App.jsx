@@ -1,22 +1,26 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import html2canvas from 'html2canvas';
-import { Settings, RefreshCcw } from 'lucide-react';
+import { Settings, RefreshCcw, LocateFixed } from 'lucide-react';
 import Overlay from './components/Overlay';
 import FilterBar from './components/FilterBar';
 import SettingsModal from './components/SettingsModal';
+import GpsPrecisionModal from './components/GpsPrecisionModal';
 
 function App() {
   const videoRef = useRef(null);
   const [stream, setStream] = useState(null);
   const [location, setLocation] = useState(null);
+  const [gpsAccuracy, setGpsAccuracy] = useState(null);
+  const [isCalibrating, setIsCalibrating] = useState(false);
   const [date, setDate] = useState(new Date());
   const [capturedImage, setCapturedImage] = useState(null);
   const [compassHeading, setCompassHeading] = useState(null);
-  const [facingMode, setFacingMode] = useState('environment'); // New state
+  const [facingMode, setFacingMode] = useState('environment');
   
   // Pro Features State
   const [activeFilter, setActiveFilter] = useState('none');
   const [showSettings, setShowSettings] = useState(false);
+  const [showGpsModal, setShowGpsModal] = useState(false);
   const [stampSettings, setStampSettings] = useState({
     showMap: true,
     showAddress: true,
@@ -31,7 +35,11 @@ function App() {
     async function startCamera() {
       try {
         const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: facingMode }
+          video: { 
+            facingMode: facingMode,
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          }
         });
         setStream(mediaStream);
         if (videoRef.current) {
@@ -49,34 +57,80 @@ function App() {
         stream.getTracks().forEach(track => track.stop());
       }
     };
-  }, [facingMode]); // Rerun when facingMode changes
+  }, [facingMode]);
 
-  // Track location
-  useEffect(() => {
-    if ('geolocation' in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => setLocation(pos),
-        (err) => console.log("Quick location failed", err),
-        { enableHighAccuracy: false, maximumAge: 60000, timeout: 5000 }
-      );
+  // High Precision GPS Position Filter
+  const handleLocationUpdate = useCallback((pos) => {
+    const acc = pos.coords.accuracy;
+    setGpsAccuracy(Math.round(acc));
+    setIsCalibrating(false);
 
-      const watchId = navigator.geolocation.watchPosition(
-        (pos) => setLocation(pos),
-        (err) => console.error("Error getting location: ", err),
-        { enableHighAccuracy: true, maximumAge: 0 }
-      );
-      return () => navigator.geolocation.clearWatch(watchId);
-    }
+    setLocation((prev) => {
+      if (!prev) return pos;
+      // If accuracy is high (< 20m), always accept
+      if (acc <= 20) return pos;
+      // If new reading is tighter than previous
+      if (acc <= (prev.coords.accuracy || 9999)) return pos;
+      // If moved > 10m
+      const dLat = Math.abs(pos.coords.latitude - prev.coords.latitude);
+      const dLon = Math.abs(pos.coords.longitude - prev.coords.longitude);
+      if (dLat > 0.0001 || dLon > 0.0001) return pos;
+      return prev;
+    });
   }, []);
 
-  // Track compass
+  // Force high accuracy GPS refresh
+  const calibrateGps = useCallback(() => {
+    if (!('geolocation' in navigator)) return;
+    setIsCalibrating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => handleLocationUpdate(pos),
+      (err) => {
+        console.warn('GPS Calibration warning:', err);
+        setIsCalibrating(false);
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+    );
+  }, [handleLocationUpdate]);
+
+  // Track location continuously with high precision
+  useEffect(() => {
+    if ('geolocation' in navigator) {
+      // 1. Immediate high accuracy satellite lock
+      calibrateGps();
+
+      // 2. High precision continuous tracking
+      const watchId = navigator.geolocation.watchPosition(
+        (pos) => handleLocationUpdate(pos),
+        (err) => console.error("Error watching location: ", err),
+        { enableHighAccuracy: true, maximumAge: 0, timeout: 20000 }
+      );
+
+      return () => navigator.geolocation.clearWatch(watchId);
+    }
+  }, [calibrateGps, handleLocationUpdate]);
+
+  // iOS Compass Permission & Orientation tracking
+  const requestCompassPermission = async () => {
+    if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+      try {
+        const response = await DeviceOrientationEvent.requestPermission();
+        if (response === 'granted') {
+          console.log('DeviceOrientation permission granted');
+        }
+      } catch (e) {
+        console.error('Compass permission error:', e);
+      }
+    }
+  };
+
   useEffect(() => {
     const handleOrientation = (event) => {
       let heading = null;
-      if (event.webkitCompassHeading) {
-        // iOS
+      if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
+        // iOS Safari
         heading = event.webkitCompassHeading;
-      } else if (event.alpha !== null) {
+      } else if (event.alpha !== null && event.alpha !== undefined) {
         // Android
         heading = 360 - event.alpha;
       }
@@ -97,20 +151,23 @@ function App() {
     };
   }, []);
 
-  // Update time every minute
+  // Update time every 10 seconds
   useEffect(() => {
-    const timer = setInterval(() => setDate(new Date()), 60000);
+    const timer = setInterval(() => setDate(new Date()), 10000);
     return () => clearInterval(timer);
   }, []);
 
   const capturePhoto = async () => {
     if (!videoRef.current) return;
     
+    // Request compass permission if on iOS Safari during first tap
+    requestCompassPermission();
+
     // 1. Draw video frame to canvas
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = video.videoWidth || 1920;
+    canvas.height = video.videoHeight || 1080;
     const ctx = canvas.getContext('2d');
     
     // Apply CSS filter to the canvas context BEFORE drawing the video
@@ -157,7 +214,7 @@ function App() {
     }
     
     // 3. Convert to image
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.92);
     setCapturedImage(dataUrl);
   };
 
@@ -180,8 +237,11 @@ function App() {
     );
   }
 
+  const isHighAcc = gpsAccuracy !== null && gpsAccuracy <= 15;
+  const isMedAcc = gpsAccuracy !== null && gpsAccuracy > 15 && gpsAccuracy <= 50;
+
   return (
-    <div className="app-container">
+    <div className="app-container" onClick={requestCompassPermission}>
       {showSettings && (
         <SettingsModal 
           settings={stampSettings} 
@@ -189,11 +249,63 @@ function App() {
           onClose={() => setShowSettings(false)} 
         />
       )}
+
+      {showGpsModal && (
+        <GpsPrecisionModal 
+          accuracy={gpsAccuracy}
+          onCalibrate={calibrateGps}
+          onClose={() => setShowGpsModal(false)}
+        />
+      )}
       
+      {/* Top Bar with GPS Accuracy Badge */}
       <div className="top-bar">
-        <button className="settings-btn" onClick={() => setShowSettings(true)}>
-          <Settings size={24} />
-        </button>
+        <div 
+          className="gps-badge"
+          onClick={(e) => {
+            e.stopPropagation();
+            setShowGpsModal(true);
+          }}
+          title="Tap for 99% GPS Accuracy Guide"
+        >
+          <div 
+            className="gps-dot" 
+            style={{ 
+              backgroundColor: isHighAcc ? '#4ade80' : isMedAcc ? '#facc15' : '#f87171' 
+            }} 
+          />
+          <span>
+            {isCalibrating 
+              ? 'Calibrating GPS...' 
+              : gpsAccuracy !== null 
+                ? (isHighAcc ? `99% GPS (±${gpsAccuracy}m)` : `GPS (±${gpsAccuracy}m)`)
+                : 'Acquiring Satellites...'}
+          </span>
+        </div>
+
+        <div className="top-bar-actions">
+          <button 
+            className="settings-btn" 
+            onClick={(e) => {
+              e.stopPropagation();
+              calibrateGps();
+            }}
+            title="Calibrate GPS"
+          >
+            <LocateFixed size={20} color={isCalibrating ? '#4ade80' : '#fff'} />
+          </button>
+
+          <button 
+            className="settings-btn" 
+            onClick={(e) => {
+              e.stopPropagation();
+              setShowSettings(true);
+            }}
+            title="Stamp Settings"
+          >
+            <Settings size={20} />
+          </button>
+        </div>
       </div>
 
       <div className="camera-container">

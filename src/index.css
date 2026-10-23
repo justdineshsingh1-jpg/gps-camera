@@ -230,8 +230,52 @@ body {
 .top-bar {
   position: absolute;
   top: 20px;
-  right: 20px;
+  left: 16px;
+  right: 16px;
   z-index: 30;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.gps-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(8px);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.gps-badge:active {
+  transform: scale(0.96);
+}
+
+.gps-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.8; }
+}
+
+.top-bar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .settings-btn {
