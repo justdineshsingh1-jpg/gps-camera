@@ -106,4 +106,5 @@ dependencies {
     implementation(libs.kotlinx.coroutines.play.services)
     implementation(libs.androidx.exifinterface)
     implementation(libs.androidx.datastore.preferences)
+    implementation(libs.guava)
 }

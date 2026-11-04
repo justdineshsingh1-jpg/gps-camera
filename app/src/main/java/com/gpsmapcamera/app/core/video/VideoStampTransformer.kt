@@ -17,6 +17,7 @@ import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.ProgressHolder
 import androidx.media3.transformer.TransformationRequest
 import androidx.media3.transformer.Transformer
+import com.google.common.collect.ImmutableList
 import com.gpsmapcamera.app.core.location.GpsData
 import com.gpsmapcamera.app.core.overlay.PhotoStampRenderer
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -67,7 +68,7 @@ class VideoStampTransformer @Inject constructor(
 
                 // 2. Build Media3 BitmapOverlay
                 val bitmapOverlay = BitmapOverlay.createStaticBitmapOverlay(stampedFullFrame)
-                val overlayEffect = OverlayEffect(listOf<TextureOverlay>(bitmapOverlay))
+                val overlayEffect = OverlayEffect(ImmutableList.of<TextureOverlay>(bitmapOverlay))
 
                 // 3. Configure Media3 Transformer with H.264 / AAC hardware acceleration
                 val editedMediaItem = EditedMediaItem.Builder(MediaItem.fromUri(Uri.fromFile(rawVideoFile)))
