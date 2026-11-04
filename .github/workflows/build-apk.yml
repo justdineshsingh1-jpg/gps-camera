@@ -33,11 +33,18 @@ jobs:
 
     - name: Build Debug APK
       run: |
-        ./gradlew assembleDebug --stacktrace --no-daemon > build_output.txt 2>&1 || {
-          echo "=== BUILD FAILED: PRINTING LAST 200 LINES ==="
-          tail -n 200 build_output.txt
-          exit 1
-        }
+        ./gradlew assembleDebug --stacktrace --no-daemon > build_output.txt 2>&1
+
+    - name: Commit Build Log on Failure
+      if: failure()
+      run: |
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git checkout --orphan build-logs
+        git rm -rf . || true
+        git add -f build_output.txt
+        git commit -m "Upload build failure log"
+        git push -f origin build-logs
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
