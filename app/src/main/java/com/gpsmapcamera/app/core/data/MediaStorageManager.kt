@@ -52,6 +52,7 @@ class MediaStorageManager @Inject constructor(
             FileOutputStream(tempFile).use { out ->
                 bitmap.compress(Bitmap.CompressFormat.JPEG, quality, out)
                 out.flush()
+                try { out.fd.sync() } catch (e: Exception) {}
             }
 
             // Write EXIF to tempFile
@@ -63,6 +64,9 @@ class MediaStorageManager @Inject constructor(
                     inputStream.copyTo(outputStream)
                 }
                 outputStream.flush()
+                if (outputStream is FileOutputStream) {
+                    try { outputStream.fd.sync() } catch (e: Exception) {}
+                }
             }
             tempFile.delete()
 
