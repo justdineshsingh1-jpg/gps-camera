@@ -50,9 +50,27 @@ class VideoStampTransformer @Inject constructor(
     ): File {
         // 1. Generate full-resolution transparent canvas stamp on background thread
         val stampedFullFrame = withContext(Dispatchers.Default) {
-            val referenceWidth = 1920
-            val referenceHeight = 1080
-            val blankBase = Bitmap.createBitmap(referenceWidth, referenceHeight, Bitmap.Config.ARGB_8888)
+            var targetWidth = 1080
+            var targetHeight = 1920
+
+            try {
+                val retriever = android.media.MediaMetadataRetriever()
+                retriever.setDataSource(rawVideoFile.absolutePath)
+                val w = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)?.toIntOrNull()
+                val h = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)?.toIntOrNull()
+                val rot = retriever.extractMetadata(android.media.MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)?.toIntOrNull() ?: 0
+                retriever.release()
+
+                if (w != null && h != null) {
+                    val isRotated = rot == 90 || rot == 270
+                    targetWidth = if (isRotated) h else w
+                    targetHeight = if (isRotated) w else h
+                }
+            } catch (e: Exception) {
+                // Fallback to portrait default
+            }
+
+            val blankBase = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
 
             PhotoStampRenderer.createStampedBitmap(
                 sourceBitmap = blankBase,

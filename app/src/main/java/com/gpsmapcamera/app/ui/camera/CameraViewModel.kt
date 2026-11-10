@@ -420,10 +420,13 @@ class CameraViewModel @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
+                // Safety fallback: save raw recorded video so user never loses their recording
+                val fallbackSave = mediaStorageManager.saveStampedVideo(rawFile, System.currentTimeMillis())
                 _uiState.update {
                     it.copy(
                         isCapturing = false,
-                        errorMessage = "Video stamp failed: ${e.message}"
+                        lastCapturedUri = fallbackSave.getOrNull(),
+                        errorMessage = "Video saved (stamp note: ${e.message})"
                     )
                 }
             }
