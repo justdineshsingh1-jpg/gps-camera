@@ -191,7 +191,18 @@ class CameraController @Inject constructor(
                     videoCapture
                 )
             } catch (fallbackEx: Exception) {
-                fallbackEx.printStackTrace()
+                // If 3 concurrent streams exceed hardware capabilities, guarantee preview + photo capture works
+                try {
+                    provider.unbindAll()
+                    camera = provider.bindToLifecycle(
+                        lifecycleOwner,
+                        baseSelector,
+                        preview,
+                        imageCapture
+                    )
+                } catch (lastEx: Exception) {
+                    lastEx.printStackTrace()
+                }
             }
         }
     }
