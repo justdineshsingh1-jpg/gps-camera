@@ -3,6 +3,8 @@ package com.gpsmapcamera.app.ui.camera
 import android.app.Application
 import android.graphics.Bitmap
 import android.net.Uri
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageCapture
 import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.PreviewView
 import androidx.lifecycle.AndroidViewModel
@@ -36,6 +38,13 @@ enum class CameraMode {
     VIDEO
 }
 
+enum class AppFlashMode {
+    OFF,
+    AUTO,
+    ON,
+    TORCH
+}
+
 data class CameraUiState(
     val cameraMode: CameraMode = CameraMode.PHOTO,
     val gpsData: GpsData = GpsData(),
@@ -49,9 +58,15 @@ data class CameraUiState(
     val lastCapturedUri: Uri? = null,
     val showQr: Boolean = true,
     val useDms: Boolean = false,
-    val isTorchOn: Boolean = false,
+    val flashMode: AppFlashMode = AppFlashMode.AUTO,
+    val isNightMode: Boolean = false,
+    val isScreenFlashing: Boolean = false,
+    val exposureCompensation: Int = 0,
     val errorMessage: String? = null
 ) {
+    val isTorchOn: Boolean
+        get() = flashMode == AppFlashMode.TORCH
+
     val isEffectiveOnline: Boolean
         get() = connectivityMode == ConnectivityMode.AUTO && networkStatus == NetworkStatus.ONLINE
 }
@@ -184,10 +199,54 @@ class CameraViewModel @Inject constructor(
         _uiState.update { it.copy(useDms = !it.useDms) }
     }
 
+    fun cycleFlashMode() {
+        val nextMode = when (_uiState.value.flashMode) {
+            AppFlashMode.AUTO -> AppFlashMode.ON
+            AppFlashMode.ON -> AppFlashMode.TORCH
+            AppFlashMode.TORCH -> AppFlashMode.OFF
+            AppFlashMode.OFF -> AppFlashMode.AUTO
+        }
+
+        when (nextMode) {
+            AppFlashMode.AUTO -> {
+                cameraController.setFlashMode(ImageCapture.FLASH_MODE_AUTO)
+                cameraController.toggleTorch(false)
+            }
+            AppFlashMode.ON -> {
+                cameraController.setFlashMode(ImageCapture.FLASH_MODE_ON)
+                cameraController.toggleTorch(false)
+            }
+            AppFlashMode.TORCH -> {
+                cameraController.setFlashMode(ImageCapture.FLASH_MODE_OFF)
+                cameraController.toggleTorch(true)
+            }
+            AppFlashMode.OFF -> {
+                cameraController.setFlashMode(ImageCapture.FLASH_MODE_OFF)
+                cameraController.toggleTorch(false)
+            }
+        }
+
+        _uiState.update { it.copy(flashMode = nextMode) }
+    }
+
     fun toggleTorch() {
-        val next = !_uiState.value.isTorchOn
-        cameraController.toggleTorch(next)
-        _uiState.update { it.copy(isTorchOn = next) }
+        cycleFlashMode()
+    }
+
+    fun toggleNightMode(lifecycleOwner: LifecycleOwner, previewView: PreviewView) {
+        val next = !_uiState.value.isNightMode
+        cameraController.setNightMode(next, lifecycleOwner, previewView)
+        _uiState.update { it.copy(isNightMode = next) }
+    }
+
+    fun adjustExposure(delta: Int) {
+        val newIndex = (_uiState.value.exposureCompensation + delta).coerceIn(-4, 4)
+        cameraController.setExposureCompensation(newIndex)
+        _uiState.update { it.copy(exposureCompensation = newIndex) }
+    }
+
+    fun onPreviewTapped(x: Float, y: Float, width: Float, height: Float) {
+        cameraController.focusAndExposeOnPoint(x, y, width, height)
     }
 
     fun capturePhoto() {
@@ -197,7 +256,16 @@ class CameraViewModel @Inject constructor(
         _uiState.update { it.copy(isCapturing = true, errorMessage = null) }
 
         viewModelScope.launch {
+            val isFrontCamera = cameraController.lensFacing == CameraSelector.LENS_FACING_FRONT
+            val shouldScreenFlash = isFrontCamera && (currentState.flashMode == AppFlashMode.ON || currentState.flashMode == AppFlashMode.AUTO)
+
             try {
+                // If front camera in selfie mode with flash, trigger display softbox flash
+                if (shouldScreenFlash) {
+                    _uiState.update { it.copy(isScreenFlashing = true) }
+                    delay(250) // Allow front sensor auto-exposure to adapt to bright screen
+                }
+
                 val rawBitmap = cameraController.capturePhoto()
 
                 val stampedBitmap = PhotoStampRenderer.createStampedBitmap(
@@ -233,6 +301,10 @@ class CameraViewModel @Inject constructor(
                         errorMessage = "Capture failed: ${e.message}"
                     )
                 }
+            } finally {
+                if (shouldScreenFlash) {
+                    _uiState.update { it.copy(isScreenFlashing = false) }
+                }
             }
         }
     }
@@ -246,73 +318,80 @@ class CameraViewModel @Inject constructor(
     }
 
     private fun startVideoRecording() {
-        val cacheDir = getApplication<Application>().cacheDir
-        val rawFile = File(cacheDir, "raw_record_${System.currentTimeMillis()}.mp4")
-        currentRecordingFile = rawFile
+        val currentState = _uiState.value
+        if (currentState.isRecording || currentState.isCapturing) return
 
-        _uiState.update { it.copy(isRecording = true, isRecordingPaused = false, recordingDurationSeconds = 0) }
+        val rawVideoFile = mediaStorageManager.createTempRawVideoFile()
+        currentRecordingFile = rawVideoFile
 
-        startTimer()
-
-        cameraController.startVideoRecording(rawFile, enableAudio = true) { event ->
-            when (event) {
-                is VideoRecordEvent.Finalize -> {
-                    timerJob?.cancel()
-                    _uiState.update { it.copy(isRecording = false, isRecordingPaused = false) }
-
-                    if (!event.hasError()) {
-                        processAndSaveStampedVideo(rawFile)
-                    } else {
-                        rawFile.delete()
-                        _uiState.update { it.copy(errorMessage = "Recording error: ${event.error}") }
-                    }
-                }
-                is VideoRecordEvent.Pause -> {
-                    _uiState.update { it.copy(isRecordingPaused = true) }
-                }
-                is VideoRecordEvent.Resume -> {
-                    _uiState.update { it.copy(isRecordingPaused = false) }
-                }
-            }
+        _uiState.update {
+            it.copy(
+                isRecording = true,
+                isRecordingPaused = false,
+                recordingDurationSeconds = 0,
+                errorMessage = null
+            )
         }
-    }
 
-    fun pauseVideoRecording() {
-        cameraController.pauseRecording()
-    }
-
-    fun resumeVideoRecording() {
-        cameraController.resumeRecording()
-    }
-
-    private fun stopVideoRecording() {
-        cameraController.stopRecording()
-    }
-
-    private fun startTimer() {
-        timerJob?.cancel()
+        // Start duration timer
         timerJob = viewModelScope.launch {
-            while (_uiState.value.isRecording) {
+            while (true) {
                 delay(1000L)
                 if (!_uiState.value.isRecordingPaused) {
                     _uiState.update { it.copy(recordingDurationSeconds = it.recordingDurationSeconds + 1) }
                 }
             }
         }
+
+        cameraController.startVideoRecording(rawVideoFile, enableAudio = true) { event ->
+            when (event) {
+                is VideoRecordEvent.Finalize -> {
+                    timerJob?.cancel()
+                    if (event.hasError()) {
+                        _uiState.update {
+                            it.copy(
+                                isRecording = false,
+                                isRecordingPaused = false,
+                                errorMessage = "Recording error code: ${event.error}"
+                            )
+                        }
+                    } else {
+                        burnStampAndSaveVideo(rawVideoFile)
+                    }
+                }
+            }
+        }
     }
 
-    private fun processAndSaveStampedVideo(rawFile: File) {
+    fun pauseResumeVideoRecording() {
         val currentState = _uiState.value
-        _uiState.update { it.copy(isCapturing = true) }
+        if (!currentState.isRecording) return
+
+        if (currentState.isRecordingPaused) {
+            cameraController.resumeRecording()
+            _uiState.update { it.copy(isRecordingPaused = false) }
+        } else {
+            cameraController.pauseRecording()
+            _uiState.update { it.copy(isRecordingPaused = true) }
+        }
+    }
+
+    private fun stopVideoRecording() {
+        timerJob?.cancel()
+        cameraController.stopRecording()
+    }
+
+    private fun burnStampAndSaveVideo(rawFile: File) {
+        val currentState = _uiState.value
+        _uiState.update { it.copy(isCapturing = true, isRecording = false) }
 
         viewModelScope.launch {
             try {
-                val stampedOutputFile = File(getApplication<Application>().cacheDir, "stamped_${System.currentTimeMillis()}.mp4")
+                val outputVideoFile = mediaStorageManager.createTempRawVideoFile()
 
-                // Media3 Transformer OverlayEffect burns the stamp into every frame
-                videoStampTransformer.burnStampIntoVideo(
+                val stampedFile = videoStampTransformer.burnStampIntoVideo(
                     rawVideoFile = rawFile,
-                    outputVideoFile = stampedOutputFile,
+                    outputVideoFile = outputVideoFile,
                     gpsData = currentState.gpsData,
                     isOnline = currentState.isEffectiveOnline,
                     mapThumbnail = if (currentState.isEffectiveOnline) currentState.mapThumbnail else null,
@@ -320,21 +399,31 @@ class CameraViewModel @Inject constructor(
                     useDms = currentState.useDms
                 )
 
-                rawFile.delete()
+                val saveResult = mediaStorageManager.saveStampedVideo(stampedFile, currentState.gpsData)
 
-                val saveResult = mediaStorageManager.saveStampedVideo(stampedOutputFile, System.currentTimeMillis())
-                _uiState.update {
-                    it.copy(
-                        isCapturing = false,
-                        lastCapturedUri = saveResult.getOrNull()
-                    )
+                rawFile.delete()
+                outputVideoFile.delete()
+
+                if (saveResult.isSuccess) {
+                    _uiState.update {
+                        it.copy(
+                            isCapturing = false,
+                            lastCapturedUri = saveResult.getOrNull()
+                        )
+                    }
+                } else {
+                    _uiState.update {
+                        it.copy(
+                            isCapturing = false,
+                            errorMessage = saveResult.exceptionOrNull()?.message ?: "Failed to save video"
+                        )
+                    }
                 }
             } catch (e: Exception) {
-                rawFile.delete()
                 _uiState.update {
                     it.copy(
                         isCapturing = false,
-                        errorMessage = "Video stamp export failed: ${e.message}"
+                        errorMessage = "Video stamp failed: ${e.message}"
                     )
                 }
             }

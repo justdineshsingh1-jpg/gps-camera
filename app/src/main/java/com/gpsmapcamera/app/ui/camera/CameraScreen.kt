@@ -2,9 +2,14 @@ package com.gpsmapcamera.app.ui.camera
 
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -15,6 +20,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -23,8 +29,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Cameraswitch
+import androidx.compose.material.icons.filled.FlashAuto
 import androidx.compose.material.icons.filled.FlashOff
 import androidx.compose.material.icons.filled.FlashOn
+import androidx.compose.material.icons.filled.Highlight
+import androidx.compose.material.icons.filled.NightsStay
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.QrCode
@@ -40,21 +49,28 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.gpsmapcamera.app.ui.components.LiveStampOverlay
 import com.gpsmapcamera.app.ui.components.StatusIndicators
+import kotlinx.coroutines.delay
 import java.util.Locale
+import kotlin.math.roundToInt
 
 @Composable
 fun CameraScreen(
@@ -66,8 +82,20 @@ fun CameraScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val snackbarHostState = remember { SnackbarHostState() }
 
-    var previewView: PreviewView? by remember { androidx.compose.runtime.mutableStateOf(null) }
+    var previewView: PreviewView? by remember { mutableStateOf(null) }
     var currentZoom by remember { mutableFloatStateOf(0f) }
+    var previewSize by remember { mutableStateOf(IntSize.Zero) }
+    var focusPoint by remember { mutableStateOf<Offset?>(null) }
+    val focusRingScale = remember { Animatable(1.4f) }
+
+    LaunchedEffect(focusPoint) {
+        if (focusPoint != null) {
+            focusRingScale.snapTo(1.4f)
+            focusRingScale.animateTo(1.0f, animationSpec = tween(200))
+            delay(2000)
+            focusPoint = null
+        }
+    }
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { error ->
@@ -75,9 +103,14 @@ fun CameraScreen(
         }
     }
 
-    Box(modifier = modifier.fillMaxSize().background(Color.Black)) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .onGloballyPositioned { previewSize = it.size }
+    ) {
 
-        // 1. CameraX PreviewView with Gestures (Tap-to-Focus & Pinch-to-Zoom)
+        // 1. CameraX PreviewView with Gestures: 3A Tap-to-Focus/Expose & Pinch-to-Zoom
         AndroidView(
             factory = { ctx ->
                 PreviewView(ctx).apply {
@@ -89,6 +122,14 @@ fun CameraScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .pointerInput(Unit) {
+                    detectTapGestures { tapOffset ->
+                        focusPoint = tapOffset
+                        val w = if (previewSize.width > 0) previewSize.width.toFloat() else 1080f
+                        val h = if (previewSize.height > 0) previewSize.height.toFloat() else 1920f
+                        viewModel.onPreviewTapped(tapOffset.x, tapOffset.y, w, h)
+                    }
+                }
+                .pointerInput(Unit) {
                     detectTransformGestures { _, _, zoom, _ ->
                         currentZoom = (currentZoom + (zoom - 1f) * 0.5f).coerceIn(0f, 1f)
                         viewModel.cameraController.setLinearZoom(currentZoom)
@@ -96,7 +137,35 @@ fun CameraScreen(
                 }
         )
 
-        // 2. Top Bar: Status Indicators & Quick Controls
+        // 2. Animated Tap-to-Focus & Auto-Exposure Indicator Ring
+        focusPoint?.let { pt ->
+            Box(
+                modifier = Modifier
+                    .offset {
+                        IntOffset(
+                            (pt.x - 30.dp.toPx()).roundToInt(),
+                            (pt.y - 30.dp.toPx()).roundToInt()
+                        )
+                    }
+                    .size(60.dp * focusRingScale.value)
+                    .border(2.dp, Color(0xFFFFD54F), CircleShape)
+            )
+        }
+
+        // 3. Front Camera Display Softbox / Screen Flash Overlay (for Night Selfies)
+        AnimatedVisibility(
+            visible = uiState.isScreenFlashing,
+            enter = fadeIn(animationSpec = tween(100)),
+            exit = fadeOut(animationSpec = tween(200))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFFFFF8E7))
+            )
+        }
+
+        // 4. Top Bar: Status Indicators & Quick Controls
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -153,22 +222,80 @@ fun CameraScreen(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Flash / Torch toggle
+                // Night Mode Toggle (🌙)
                 IconButton(
-                    onClick = { viewModel.toggleTorch() },
+                    onClick = {
+                        previewView?.let { viewModel.toggleNightMode(lifecycleOwner, it) }
+                    },
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(if (uiState.isNightMode) Color(0xFF1E88E5) else Color(0x80000000))
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.NightsStay,
+                        contentDescription = "Night Mode",
+                        tint = if (uiState.isNightMode) Color(0xFFFFD54F) else Color.White
+                    )
+                }
+
+                Spacer(modifier = Modifier.size(8.dp))
+
+                // Flash Mode cycle (Auto / On / Torch / Off)
+                val (flashIcon, flashTint) = when (uiState.flashMode) {
+                    AppFlashMode.AUTO -> Icons.Default.FlashAuto to Color(0xFF00E676)
+                    AppFlashMode.ON -> Icons.Default.FlashOn to Color(0xFFFFD54F)
+                    AppFlashMode.TORCH -> Icons.Default.Highlight to Color(0xFFFF9100)
+                    AppFlashMode.OFF -> Icons.Default.FlashOff to Color.White
+                }
+
+                IconButton(
+                    onClick = { viewModel.cycleFlashMode() },
                     modifier = Modifier
                         .size(40.dp)
                         .clip(CircleShape)
                         .background(Color(0x80000000))
                 ) {
                     Icon(
-                        imageVector = if (uiState.isTorchOn) Icons.Default.FlashOn else Icons.Default.FlashOff,
-                        contentDescription = "Flash",
-                        tint = if (uiState.isTorchOn) Color(0xFFFFCC00) else Color.White
+                        imageVector = flashIcon,
+                        contentDescription = "Flash Mode",
+                        tint = flashTint
                     )
                 }
 
-                Spacer(modifier = Modifier.size(10.dp))
+                Spacer(modifier = Modifier.size(8.dp))
+
+                // Exposure Compensation Pill (+1EV, +2EV, -1EV, 0)
+                Box(
+                    modifier = Modifier
+                        .height(36.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(if (uiState.exposureCompensation != 0) Color(0xFF1E88E5) else Color(0x80000000))
+                        .clickable {
+                            val next = when (uiState.exposureCompensation) {
+                                0 -> 1
+                                1 -> 2
+                                2 -> -1
+                                else -> 0
+                            }
+                            viewModel.adjustExposure(next - uiState.exposureCompensation)
+                        }
+                        .padding(horizontal = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = when {
+                            uiState.exposureCompensation > 0 -> "+${uiState.exposureCompensation}EV"
+                            uiState.exposureCompensation < 0 -> "${uiState.exposureCompensation}EV"
+                            else -> "EV"
+                        },
+                        color = Color.White,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.size(8.dp))
 
                 // QR Code toggle
                 IconButton(
@@ -185,7 +312,7 @@ fun CameraScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.size(10.dp))
+                Spacer(modifier = Modifier.size(8.dp))
 
                 // DMS / Decimal Toggle Pill
                 Box(
@@ -207,7 +334,7 @@ fun CameraScreen(
             }
         }
 
-        // 3. Bottom Layer: Live Stamp Overlay + Mode Tabs + Shutter Controls
+        // 5. Bottom Layer: Live Stamp Overlay + Mode Tabs + Shutter Controls
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -268,11 +395,7 @@ fun CameraScreen(
                 if (uiState.isRecording) {
                     IconButton(
                         onClick = {
-                            if (uiState.isRecordingPaused) {
-                                viewModel.resumeVideoRecording()
-                            } else {
-                                viewModel.pauseVideoRecording()
-                            }
+                            viewModel.pauseResumeVideoRecording()
                         },
                         modifier = Modifier
                             .size(54.dp)
