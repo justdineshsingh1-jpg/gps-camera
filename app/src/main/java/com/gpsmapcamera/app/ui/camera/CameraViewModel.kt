@@ -168,8 +168,7 @@ class CameraViewModel @Inject constructor(
     fun cycleMapTileType() {
         val nextType = when (_uiState.value.mapTileType) {
             MapTileType.GOOGLE_STREET -> MapTileType.GOOGLE_HYBRID
-            MapTileType.GOOGLE_HYBRID -> MapTileType.OSM
-            MapTileType.OSM -> MapTileType.GOOGLE_STREET
+            MapTileType.GOOGLE_HYBRID -> MapTileType.GOOGLE_STREET
         }
         _uiState.update { it.copy(mapTileType = nextType) }
 

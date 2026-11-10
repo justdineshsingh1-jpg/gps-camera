@@ -1,6 +1,7 @@
 package com.gpsmapcamera.app.ui.components
 
 import android.graphics.Bitmap
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,7 +26,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -156,30 +161,70 @@ fun LiveStampOverlay(
                             )
                         }
 
-                        // Google Watermark
-                        Text(
-                            text = "Google",
-                            color = Color(0xDDFFFFFF),
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
+                        // Authentic Google Watermark with white backing pill
+                        Row(
                             modifier = Modifier
                                 .align(Alignment.BottomStart)
                                 .padding(3.dp)
-                        )
+                                .clip(RoundedCornerShape(3.dp))
+                                .background(Color(0xD9FFFFFF))
+                                .padding(horizontal = 3.dp, vertical = 1.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("G", color = Color(0xFF4285F4), fontSize = 7.5.sp, fontWeight = FontWeight.Bold)
+                            Text("o", color = Color(0xFFEA4335), fontSize = 7.5.sp, fontWeight = FontWeight.Bold)
+                            Text("o", color = Color(0xFFFBBC05), fontSize = 7.5.sp, fontWeight = FontWeight.Bold)
+                            Text("g", color = Color(0xFF4285F4), fontSize = 7.5.sp, fontWeight = FontWeight.Bold)
+                            Text("l", color = Color(0xFF34A853), fontSize = 7.5.sp, fontWeight = FontWeight.Bold)
+                            Text("e", color = Color(0xFFEA4335), fontSize = 7.5.sp, fontWeight = FontWeight.Bold)
+                        }
 
-                        // Center Red Pin
-                        Box(
-                            modifier = Modifier
-                                .size(9.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFFEF4444))
-                        )
-                        Box(
-                            modifier = Modifier
-                                .size(3.dp)
-                                .clip(CircleShape)
-                                .background(Color.White)
-                        )
+                        // Authentic Teardrop Google Maps Pin with dark red center dot
+                        Canvas(modifier = Modifier.matchParentSize()) {
+                            val tipX = size.width / 2f
+                            val tipY = size.height / 2f + 3.dp.toPx()
+                            val pinWidth = 16.dp.toPx()
+                            val pinHeight = 22.dp.toPx()
+                            val headRadius = pinWidth / 2f
+                            val headCenterY = tipY - pinHeight + headRadius
+
+                            // 1. Shadow underneath pin tip
+                            drawOval(
+                                color = Color(0x66000000),
+                                topLeft = Offset(tipX - (headRadius * 0.55f), tipY - 1.dp.toPx()),
+                                size = Size(headRadius * 1.1f, 3.dp.toPx())
+                            )
+
+                            // 2. Red Teardrop Body (Google Maps Red: #EA4335)
+                            val pinPath = Path().apply {
+                                moveTo(tipX, tipY)
+                                cubicTo(
+                                    tipX - (headRadius * 0.75f), tipY - (pinHeight * 0.35f),
+                                    tipX - headRadius, headCenterY + (headRadius * 0.5f),
+                                    tipX - headRadius, headCenterY
+                                )
+                                arcTo(
+                                    Rect(tipX - headRadius, headCenterY - headRadius, tipX + headRadius, headCenterY + headRadius),
+                                    180f,
+                                    180f,
+                                    false
+                                )
+                                cubicTo(
+                                    tipX + headRadius, headCenterY + (headRadius * 0.5f),
+                                    tipX + (headRadius * 0.75f), tipY - (pinHeight * 0.35f),
+                                    tipX, tipY
+                                )
+                                close()
+                            }
+                            drawPath(pinPath, color = Color(0xFFEA4335))
+
+                            // 3. Dark red center dot (Google Maps: #B31217)
+                            drawCircle(
+                                color = Color(0xFFB31217),
+                                radius = headRadius * 0.42f,
+                                center = Offset(tipX, headCenterY)
+                            )
+                        }
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                 }

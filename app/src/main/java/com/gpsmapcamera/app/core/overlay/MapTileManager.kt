@@ -19,8 +19,7 @@ import kotlin.math.tan
 
 enum class MapTileType(val label: String) {
     GOOGLE_STREET("Google Street"),
-    GOOGLE_HYBRID("Google Satellite"),
-    OSM("OpenStreetMap")
+    GOOGLE_HYBRID("Google Satellite")
 }
 
 @Singleton
@@ -32,9 +31,8 @@ class MapTileManager @Inject constructor() {
     }
 
     /**
-     * Fetches or retrieves from memory cache a mini map tile thumbnail.
-     * Supports Google Street, Google Satellite/Hybrid, and OpenStreetMap.
-     * Guaranteed never to exceed 2000ms. If primary fails, automatically falls back.
+     * Fetches or retrieves from memory cache a mini map tile thumbnail using Google Maps tiles.
+     * Guaranteed never to exceed 2000ms.
      */
     suspend fun getMapTileThumbnail(
         latitude: Double,
@@ -57,16 +55,12 @@ class MapTileManager @Inject constructor() {
                 MapTileType.GOOGLE_STREET -> listOf(
                     "https://mt1.google.com/vt/lyrs=m&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}",
                     "https://mt0.google.com/vt/lyrs=m&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}",
-                    "https://tile.openstreetmap.org/${tileCoord.zoom}/${tileCoord.x}/${tileCoord.y}.png"
+                    "https://mt2.google.com/vt/lyrs=m&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}"
                 )
                 MapTileType.GOOGLE_HYBRID -> listOf(
                     "https://mt1.google.com/vt/lyrs=y&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}",
                     "https://mt0.google.com/vt/lyrs=y&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}",
-                    "https://mt1.google.com/vt/lyrs=m&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}"
-                )
-                MapTileType.OSM -> listOf(
-                    "https://tile.openstreetmap.org/${tileCoord.zoom}/${tileCoord.x}/${tileCoord.y}.png",
-                    "https://mt1.google.com/vt/lyrs=m&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}"
+                    "https://mt2.google.com/vt/lyrs=y&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}"
                 )
             }
 

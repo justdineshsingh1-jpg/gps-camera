@@ -315,43 +315,22 @@ fun CameraScreen(
 
                 Spacer(modifier = Modifier.size(8.dp))
 
-                // Map Type Pill (STREET / SATELLITE / OSM)
+                // Map Type Pill (STREET / SATELLITE)
                 Box(
                     modifier = Modifier
                         .height(36.dp)
                         .clip(RoundedCornerShape(18.dp))
                         .background(Color(0x80000000))
                         .clickable { viewModel.cycleMapTileType() }
-                        .padding(horizontal = 10.dp),
+                        .padding(horizontal = 12.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
                         text = when (uiState.mapTileType) {
                             MapTileType.GOOGLE_STREET -> "STREET"
                             MapTileType.GOOGLE_HYBRID -> "SATELLITE"
-                            MapTileType.OSM -> "OSM"
                         },
                         color = Color(0xFF38BDF8),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-
-                Spacer(modifier = Modifier.size(8.dp))
-
-                // DMS / Decimal Toggle Pill
-                Box(
-                    modifier = Modifier
-                        .height(36.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(Color(0x80000000))
-                        .clickable { viewModel.toggleDms() }
-                        .padding(horizontal = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = if (uiState.useDms) "DMS" else "DEC",
-                        color = Color.White,
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold
                     )

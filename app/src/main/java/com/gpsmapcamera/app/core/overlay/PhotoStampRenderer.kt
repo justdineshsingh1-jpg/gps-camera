@@ -199,14 +199,8 @@ object PhotoStampRenderer {
                 canvas.drawRect(mapRect, placeholderPaint)
             }
 
-            // Google Logo in bottom-left of map thumbnail
-            val googleLogoPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.argb(230, 255, 255, 255)
-                textSize = 9.5f * scale
-                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-                setShadowLayer(3f, 0f, 1f, Color.argb(180, 0, 0, 0))
-            }
-            canvas.drawText("Google", mapRect.left + (5f * scale), mapRect.bottom - (5f * scale), googleLogoPaint)
+            // Google Logo in bottom-left of map thumbnail with authentic brand colors & backdrop
+            drawGoogleWatermark(canvas, mapRect.left + (5f * scale), mapRect.bottom - (5f * scale), scale)
 
             canvas.restore()
 
@@ -218,18 +212,8 @@ object PhotoStampRenderer {
             }
             canvas.drawRoundRect(mapRect, cornerRadius * 0.5f, cornerRadius * 0.5f, mapBorder)
 
-            // Red Pin in Center of Map
-            val pinPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.rgb(239, 68, 68) // Bright red
-                style = Paint.Style.FILL
-                setShadowLayer(4f, 0f, 2f, Color.argb(160, 0, 0, 0))
-            }
-            canvas.drawCircle(mapRect.centerX(), mapRect.centerY() - (2f * scale), 7.5f * scale, pinPaint)
-            val pinHole = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.WHITE
-                style = Paint.Style.FILL
-            }
-            canvas.drawCircle(mapRect.centerX(), mapRect.centerY() - (2f * scale), 3f * scale, pinHole)
+            // Authentic Teardrop Google Maps Pin with dark red center dot
+            drawGoogleMapPin(canvas, mapRect, scale)
         }
 
         // 6. Draw QR Code (Right side)
@@ -337,6 +321,112 @@ object PhotoStampRenderer {
             lines.add(currentLine)
         }
         return lines
+    }
+
+    private fun drawGoogleMapPin(canvas: Canvas, mapRect: RectF, scale: Float) {
+        val tipX = mapRect.centerX()
+        val tipY = mapRect.centerY() + (3.5f * scale) // tip points directly to location center
+        val pinWidth = 20f * scale
+        val pinHeight = 28f * scale
+        val headRadius = pinWidth / 2f
+        val headCenterY = tipY - pinHeight + headRadius
+
+        // 1. Subtle drop shadow beneath the pin tip
+        val shadowPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(90, 0, 0, 0)
+            style = Paint.Style.FILL
+        }
+        val shadowRect = RectF(
+            tipX - (headRadius * 0.55f),
+            tipY - (1.5f * scale),
+            tipX + (headRadius * 0.55f),
+            tipY + (3.5f * scale)
+        )
+        canvas.drawOval(shadowRect, shadowPaint)
+
+        // 2. Red Pin Body (Google Maps Red: #EA4335)
+        val pinPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(234, 67, 53)
+            style = Paint.Style.FILL
+        }
+
+        val pinPath = Path().apply {
+            moveTo(tipX, tipY)
+            // Left curve up into circular head
+            cubicTo(
+                tipX - (headRadius * 0.75f), tipY - (pinHeight * 0.35f),
+                tipX - headRadius, headCenterY + (headRadius * 0.5f),
+                tipX - headRadius, headCenterY
+            )
+            // Top semi-circle
+            arcTo(
+                RectF(tipX - headRadius, headCenterY - headRadius, tipX + headRadius, headCenterY + headRadius),
+                180f,
+                180f,
+                false
+            )
+            // Right curve down into tip
+            cubicTo(
+                tipX + headRadius, headCenterY + (headRadius * 0.5f),
+                tipX + (headRadius * 0.75f), tipY - (pinHeight * 0.35f),
+                tipX, tipY
+            )
+            close()
+        }
+        canvas.drawPath(pinPath, pinPaint)
+
+        // Subtle dark pin border for high contrast
+        val pinStroke = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(35, 0, 0, 0)
+            style = Paint.Style.STROKE
+            strokeWidth = 0.8f * scale
+        }
+        canvas.drawPath(pinPath, pinStroke)
+
+        // 3. Inner Dark Red/Maroon Center Dot (Google Maps: #B31217)
+        val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(179, 18, 23)
+            style = Paint.Style.FILL
+        }
+        canvas.drawCircle(tipX, headCenterY, headRadius * 0.42f, dotPaint)
+    }
+
+    private fun drawGoogleWatermark(canvas: Canvas, x: Float, y: Float, scale: Float) {
+        val logoTextSize = 9.5f * scale
+        val letters = listOf(
+            "G" to Color.rgb(66, 133, 244),  // Google Blue #4285F4
+            "o" to Color.rgb(234, 67, 53),   // Google Red #EA4335
+            "o" to Color.rgb(251, 188, 5),   // Google Yellow #FBBC05
+            "g" to Color.rgb(66, 133, 244),  // Google Blue #4285F4
+            "l" to Color.rgb(52, 168, 83),   // Google Green #34A853
+            "e" to Color.rgb(234, 67, 53)    // Google Red #EA4335
+        )
+
+        // White backdrop pill for crystal clarity on both light and dark tiles
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(215, 255, 255, 255)
+            style = Paint.Style.FILL
+        }
+        val tempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = logoTextSize
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val totalWidth = letters.sumOf { tempPaint.measureText(it.first).toDouble() }.toFloat()
+
+        val pillRect = RectF(
+            x - (2.5f * scale),
+            y - logoTextSize - (1.5f * scale),
+            x + totalWidth + (2.5f * scale),
+            y + (2f * scale)
+        )
+        canvas.drawRoundRect(pillRect, 3.5f * scale, 3.5f * scale, bgPaint)
+
+        var curX = x
+        for ((char, col) in letters) {
+            tempPaint.color = col
+            canvas.drawText(char, curX, y, tempPaint)
+            curX += tempPaint.measureText(char)
+        }
     }
 
     private fun getCountryFlag(country: String?): String {
