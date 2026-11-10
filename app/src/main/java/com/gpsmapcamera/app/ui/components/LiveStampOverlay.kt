@@ -7,8 +7,11 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -119,15 +122,19 @@ fun LiveStampOverlay(
             Spacer(modifier = Modifier.height(4.dp))
 
             // Main Body: [Map Thumbnail] [Address Block (No '...')] [QR Code]
+            // Using IntrinsicSize.Min ensures Map, Text Block, and QR Code match 1:1 in height with zero empty space
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 // 1. Online Map Thumbnail with Red Pin & Google Logo
                 if (isOnline) {
                     Box(
                         modifier = Modifier
-                            .size(76.dp)
+                            .fillMaxHeight()
+                            .aspectRatio(1f)
                             .clip(RoundedCornerShape(8.dp))
                             .background(Color(0xFF1E293B))
                             .border(1.dp, Color(0x44FFFFFF), RoundedCornerShape(8.dp)),
@@ -187,9 +194,9 @@ fun LiveStampOverlay(
                     Text(
                         text = headline,
                         color = Color.White,
-                        fontSize = 13.sp,
+                        fontSize = 13.5.sp,
                         fontWeight = FontWeight.Bold,
-                        lineHeight = 16.sp
+                        lineHeight = 16.5.sp
                     )
 
                     Spacer(modifier = Modifier.height(2.dp))
@@ -198,19 +205,19 @@ fun LiveStampOverlay(
                     Text(
                         text = addressText,
                         color = Color(0xFFF1F5F9),
-                        fontSize = 10.5.sp,
+                        fontSize = 11.sp,
                         fontWeight = FontWeight.Normal,
-                        lineHeight = 13.5.sp,
+                        lineHeight = 14.sp,
                         maxLines = 3
                     )
 
-                    Spacer(modifier = Modifier.height(3.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
 
                     // Coordinates
                     Text(
                         text = coordsText,
                         color = Color(0xFFE2E8F0),
-                        fontSize = 10.sp,
+                        fontSize = 10.5.sp,
                         fontWeight = FontWeight.Medium
                     )
 
@@ -218,14 +225,14 @@ fun LiveStampOverlay(
                     Text(
                         text = dateTimeText,
                         color = Color(0xFFCBD5E1),
-                        fontSize = 9.5.sp
+                        fontSize = 10.sp
                     )
 
                     // Note
                     Text(
                         text = noteText,
                         color = Color(0xFF94A3B8),
-                        fontSize = 9.sp
+                        fontSize = 9.5.sp
                     )
                 }
 
@@ -233,7 +240,8 @@ fun LiveStampOverlay(
                 if (showQr && qrBitmap != null) {
                     Box(
                         modifier = Modifier
-                            .size(70.dp)
+                            .fillMaxHeight()
+                            .aspectRatio(1f)
                             .clip(RoundedCornerShape(6.dp))
                             .background(Color.White)
                             .padding(2.dp),
@@ -242,7 +250,7 @@ fun LiveStampOverlay(
                         Image(
                             bitmap = qrBitmap.asImageBitmap(),
                             contentDescription = "Location QR Code",
-                            modifier = Modifier.size(66.dp)
+                            modifier = Modifier.matchParentSize()
                         )
                     }
                 }

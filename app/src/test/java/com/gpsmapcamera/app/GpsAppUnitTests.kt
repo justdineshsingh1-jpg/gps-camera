@@ -55,4 +55,13 @@ class GpsAppUnitTests {
         val str = LocationFormattingUtils.formatDateTimeSimple(timestamp)
         assertTrue(str.contains("Tuesday") || str.contains("2026") || str.contains("11:28"))
     }
+
+    @Test
+    fun testMapTileTypes() {
+        val types = com.gpsmapcamera.app.core.overlay.MapTileType.values()
+        assertEquals(3, types.size)
+        assertTrue(types.contains(com.gpsmapcamera.app.core.overlay.MapTileType.GOOGLE_STREET))
+        assertTrue(types.contains(com.gpsmapcamera.app.core.overlay.MapTileType.GOOGLE_HYBRID))
+        assertTrue(types.contains(com.gpsmapcamera.app.core.overlay.MapTileType.OSM))
+    }
 }

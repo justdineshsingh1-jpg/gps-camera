@@ -7,6 +7,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.hardware.camera2.CameraMetadata
 import android.hardware.camera2.CaptureRequest
+import android.media.AudioManager
 import android.util.Range
 import androidx.annotation.OptIn
 import androidx.camera.camera2.interop.Camera2Interop
@@ -234,6 +235,14 @@ class CameraController @Inject constructor(
         camera?.cameraControl?.setLinearZoom(zoom.coerceIn(0f, 1f))
     }
 
+    fun setZoomRatio(ratio: Float) {
+        camera?.cameraControl?.setZoomRatio(ratio.coerceIn(1f, 8f))
+    }
+
+    fun getZoomRatio(): Float {
+        return camera?.cameraInfo?.zoomState?.value?.zoomRatio ?: 1f
+    }
+
     /**
      * 3A Tap-to-Focus and Tap-to-Expose:
      * Focuses and recalculates Auto-Exposure & Auto-White-Balance for the tapped subject (e.g. human face).
@@ -264,10 +273,34 @@ class CameraController @Inject constructor(
             return@suspendCancellableCoroutine
         }
 
+        // Silent Shutter: Mute system stream during photo capture so no click sound is emitted
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        val originalSystemVolume = try {
+            audioManager?.getStreamVolume(AudioManager.STREAM_SYSTEM)
+        } catch (e: Exception) {
+            null
+        }
+
+        try {
+            audioManager?.setStreamVolume(AudioManager.STREAM_SYSTEM, 0, 0)
+        } catch (e: Exception) {
+            // Ignore if notification/DND policy restricts stream modification
+        }
+
+        fun restoreVolume() {
+            try {
+                if (originalSystemVolume != null) {
+                    audioManager?.setStreamVolume(AudioManager.STREAM_SYSTEM, originalSystemVolume, 0)
+                }
+            } catch (e: Exception) {
+            }
+        }
+
         capture.takePicture(
             cameraExecutor,
             object : ImageCapture.OnImageCapturedCallback() {
                 override fun onCaptureSuccess(image: ImageProxy) {
+                    restoreVolume()
                     try {
                         val rotationDegrees = image.imageInfo.rotationDegrees
                         val bitmap = imageProxyToBitmap(image, rotationDegrees, lensFacing == CameraSelector.LENS_FACING_FRONT)
@@ -280,6 +313,7 @@ class CameraController @Inject constructor(
                 }
 
                 override fun onError(exception: ImageCaptureException) {
+                    restoreVolume()
                     continuation.resumeWithException(exception)
                 }
             }

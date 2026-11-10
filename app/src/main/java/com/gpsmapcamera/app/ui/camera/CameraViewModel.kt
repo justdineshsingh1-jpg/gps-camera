@@ -19,6 +19,7 @@ import com.gpsmapcamera.app.core.geocoder.AddressRepository
 import com.gpsmapcamera.app.core.location.GpsData
 import com.gpsmapcamera.app.core.location.LocationTracker
 import com.gpsmapcamera.app.core.overlay.MapTileManager
+import com.gpsmapcamera.app.core.overlay.MapTileType
 import com.gpsmapcamera.app.core.overlay.PhotoStampRenderer
 import com.gpsmapcamera.app.core.video.VideoStampTransformer
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -51,6 +52,8 @@ data class CameraUiState(
     val networkStatus: NetworkStatus = NetworkStatus.OFFLINE,
     val connectivityMode: ConnectivityMode = ConnectivityMode.AUTO,
     val mapThumbnail: Bitmap? = null,
+    val mapTileType: MapTileType = MapTileType.GOOGLE_STREET,
+    val currentZoomRatio: Float = 1.0f,
     val isCapturing: Boolean = false,
     val isRecording: Boolean = false,
     val isRecordingPaused: Boolean = false,
@@ -148,11 +151,34 @@ class CameraViewModel @Inject constructor(
                 }
 
                 if (isOnline) {
-                    val tile = mapTileManager.getMapTileThumbnail(lat, lon, true)
+                    val tile = mapTileManager.getMapTileThumbnail(lat, lon, true, tileType = _uiState.value.mapTileType)
                     _uiState.update { it.copy(mapThumbnail = tile) }
                 } else {
                     _uiState.update { it.copy(mapThumbnail = null) }
                 }
+            }
+        }
+    }
+
+    fun setZoomRatio(ratio: Float) {
+        cameraController.setZoomRatio(ratio)
+        _uiState.update { it.copy(currentZoomRatio = ratio) }
+    }
+
+    fun cycleMapTileType() {
+        val nextType = when (_uiState.value.mapTileType) {
+            MapTileType.GOOGLE_STREET -> MapTileType.GOOGLE_HYBRID
+            MapTileType.GOOGLE_HYBRID -> MapTileType.OSM
+            MapTileType.OSM -> MapTileType.GOOGLE_STREET
+        }
+        _uiState.update { it.copy(mapTileType = nextType) }
+
+        val lat = _uiState.value.gpsData.latitude
+        val lon = _uiState.value.gpsData.longitude
+        if (_uiState.value.isEffectiveOnline && lat != 0.0) {
+            viewModelScope.launch {
+                val tile = mapTileManager.getMapTileThumbnail(lat, lon, true, tileType = nextType)
+                _uiState.update { it.copy(mapThumbnail = tile) }
             }
         }
     }

@@ -14,7 +14,7 @@ import kotlin.math.max
 object PhotoStampRenderer {
 
     /**
-     * Composites a permanent GPS stamp matching reference styling (Image 3):
+     * Composites a permanent GPS stamp matching reference styling (Zero Empty Space):
      * - Top-Right Badge: [GPS Map Camera]
      * - Top Line: City, State, Country Flag (e.g. Guwahati, Assam, India 🇮🇳)
      * - Full Address: Multi-line wrapped with NO ellipsis (...)
@@ -24,8 +24,7 @@ object PhotoStampRenderer {
      * - Left: Square Map thumbnail with red pin & Google watermark (online mode)
      * - Right: Clean QR Code
      *
-     * In Offline Mode:
-     * - The map thumbnail is omitted, text reflows to full card width.
+     * Height is tightly bounded to content so there is mathematically zero blank area.
      */
     fun createStampedBitmap(
         sourceBitmap: Bitmap,
@@ -45,16 +44,18 @@ object PhotoStampRenderer {
         // Normalize scaling against 1080px reference
         val scale = max(imgWidth / 1080f, 0.6f)
 
-        val margin = 20f * scale
-        val cardPadding = 18f * scale
-        val cornerRadius = 24f * scale
+        val margin = 18f * scale
+        val cardPadding = 13f * scale
+        val cornerRadius = 20f * scale
 
-        // Typography sizes
-        val titleTextSize = 22f * scale
-        val bodyTextSize = 14.5f * scale
-        val metaTextSize = 13f * scale
-        val noteTextSize = 12f * scale
-        val badgeTextSize = 11f * scale
+        // Typography sizes (enlarged for crystal readability without empty gaps)
+        val titleTextSize = 23f * scale
+        val bodyTextSize = 15.5f * scale
+        val coordTextSize = 14.5f * scale
+        val metaTextSize = 13.5f * scale
+        val noteTextSize = 13f * scale
+        val badgeTextSize = 11.5f * scale
+        val lineSpacing = 3.5f * scale
 
         // Paints
         val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -71,7 +72,7 @@ object PhotoStampRenderer {
 
         val coordPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(226, 232, 240) // Slate 200
-            textSize = bodyTextSize
+            textSize = coordTextSize
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
         }
 
@@ -93,7 +94,7 @@ object PhotoStampRenderer {
             typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         }
 
-        // 1. Prepare Text Data & Wrapped Address (NO '...' ELLIPSIS)
+        // 1. Prepare Headline
         val countryFlag = getCountryFlag(gpsData.country)
         val headline = when {
             !gpsData.city.isNullOrBlank() && !gpsData.state.isNullOrBlank() && !gpsData.country.isNullOrBlank() ->
@@ -106,25 +107,20 @@ object PhotoStampRenderer {
             else -> "GPS Map Camera"
         }
 
-        // Calculate layout widths
+        // 2. Wrap address without ellipsis
         val showMap = isOnline && (mapThumbnail != null || gpsData.latitude != 0.0)
-        val estimatedCardHeight = 245f * scale
-        val mapSize = if (showMap) estimatedCardHeight - (cardPadding * 2) else 0f
-
-        var qrSize = 0f
-        var qrBitmap: Bitmap? = null
-        if (showQr && (gpsData.latitude != 0.0 || gpsData.longitude != 0.0)) {
-            qrSize = estimatedCardHeight - (cardPadding * 2.2f)
-            qrBitmap = QrCodeGenerator.generateLocationQr(gpsData.latitude, gpsData.longitude, qrSize.toInt())
-        }
+        val approxEstimatedHeight = 180f * scale
+        val tempSideSize = approxEstimatedHeight - (cardPadding * 2)
 
         val cardLeft = margin
         val cardRight = imgWidth - margin
-        val availableContentLeft = if (showMap) cardLeft + cardPadding + mapSize + (14f * scale) else cardLeft + cardPadding
-        val availableContentRight = if (qrBitmap != null) cardRight - cardPadding - qrSize - (12f * scale) else cardRight - cardPadding
-        val maxTextWidth = (availableContentRight - availableContentLeft).coerceAtLeast(120f)
+        val availableContentLeft = if (showMap) cardLeft + cardPadding + tempSideSize + (12f * scale) else cardLeft + cardPadding
+        val availableContentRight = if (showQr && (gpsData.latitude != 0.0 || gpsData.longitude != 0.0)) {
+            cardRight - cardPadding - tempSideSize - (10f * scale)
+        } else cardRight - cardPadding
 
-        // Multi-line address wrapping without '...'
+        val maxTextWidth = (availableContentRight - availableContentLeft).coerceAtLeast(140f)
+
         val rawAddress = gpsData.addressLine ?: if (gpsData.latitude != 0.0) "Plus Code: ${gpsData.plusCode}" else "Acquiring location..."
         val addressLines = wrapTextWithoutEllipsis(rawAddress, bodyPaint, maxTextWidth, maxLines = 3)
 
@@ -139,11 +135,23 @@ object PhotoStampRenderer {
         val dateTimeText = LocationFormattingUtils.formatDateTimeSimple(gpsData.timestamp)
         val noteText = "Note : Captured by $watermarkText"
 
-        // Dynamic card height calculation based on wrapped address line count
-        val lineSpacing = 4f * scale
-        val addressBlockHeight = addressLines.size * (bodyTextSize + lineSpacing)
-        val textBlockTotalHeight = titleTextSize + (8f * scale) + addressBlockHeight + (bodyTextSize + lineSpacing) + (metaTextSize + lineSpacing) + noteTextSize + (12f * scale)
-        val cardHeight = max(textBlockTotalHeight + (cardPadding * 2), 220f * scale)
+        // 3. Precise Content Height Calculation: NO EMPTY BLANK SPACE
+        val titleH = titleTextSize
+        val addressBlockH = addressLines.size * (bodyTextSize + lineSpacing)
+        val coordH = coordTextSize + lineSpacing
+        val dateTimeH = metaTextSize + lineSpacing
+        val noteH = noteTextSize + lineSpacing
+
+        val contentHeight = titleH + (4f * scale) + addressBlockH + coordH + dateTimeH + noteH
+        val cardHeight = contentHeight + (cardPadding * 2)
+
+        // Perfect square side for Map and QR code matching the exact inner content height
+        val sideSize = contentHeight
+
+        val finalContentLeft = if (showMap) cardLeft + cardPadding + sideSize + (12f * scale) else cardLeft + cardPadding
+        val finalContentRight = if (showQr && (gpsData.latitude != 0.0 || gpsData.longitude != 0.0)) {
+            cardRight - cardPadding - sideSize - (10f * scale)
+        } else cardRight - cardPadding
 
         val cardRect = RectF(
             cardLeft,
@@ -152,32 +160,32 @@ object PhotoStampRenderer {
             imgHeight - margin
         )
 
-        // 2. Draw Card Background (Semi-transparent deep dark rounded rect)
+        // 4. Draw Card Background (Semi-transparent deep dark rounded rect)
         val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.argb(205, 15, 23, 42) // Slate 900 translucent
+            color = Color.argb(210, 15, 23, 42) // Slate 900 translucent
             style = Paint.Style.FILL
         }
         canvas.drawRoundRect(cardRect, cornerRadius, cornerRadius, bgPaint)
 
         // Subtle Card Border
         val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.argb(55, 255, 255, 255)
+            color = Color.argb(60, 255, 255, 255)
             style = Paint.Style.STROKE
-            strokeWidth = 1.5f * scale
+            strokeWidth = 1.2f * scale
         }
         canvas.drawRoundRect(cardRect, cornerRadius, cornerRadius, borderPaint)
 
-        // 3. Draw Map Thumbnail (Left side)
+        // 5. Draw Map Thumbnail (Left side)
         if (showMap) {
             val mapRect = RectF(
                 cardRect.left + cardPadding,
                 cardRect.top + cardPadding,
-                cardRect.left + cardPadding + mapSize,
-                cardRect.top + cardPadding + mapSize
+                cardRect.left + cardPadding + sideSize,
+                cardRect.top + cardPadding + sideSize
             )
 
             val mapPath = Path().apply {
-                addRoundRect(mapRect, cornerRadius * 0.6f, cornerRadius * 0.6f, Path.Direction.CW)
+                addRoundRect(mapRect, cornerRadius * 0.5f, cornerRadius * 0.5f, Path.Direction.CW)
             }
             canvas.save()
             canvas.clipPath(mapPath)
@@ -185,7 +193,6 @@ object PhotoStampRenderer {
             if (mapThumbnail != null) {
                 canvas.drawBitmap(mapThumbnail, null, mapRect, null)
             } else {
-                // Modern satellite dark background placeholder
                 val placeholderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = Color.rgb(30, 41, 59)
                 }
@@ -194,11 +201,12 @@ object PhotoStampRenderer {
 
             // Google Logo in bottom-left of map thumbnail
             val googleLogoPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.argb(220, 255, 255, 255)
-                textSize = 10f * scale
+                color = Color.argb(230, 255, 255, 255)
+                textSize = 9.5f * scale
                 typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                setShadowLayer(3f, 0f, 1f, Color.argb(180, 0, 0, 0))
             }
-            canvas.drawText("Google", mapRect.left + (6f * scale), mapRect.bottom - (6f * scale), googleLogoPaint)
+            canvas.drawText("Google", mapRect.left + (5f * scale), mapRect.bottom - (5f * scale), googleLogoPaint)
 
             canvas.restore()
 
@@ -208,82 +216,89 @@ object PhotoStampRenderer {
                 style = Paint.Style.STROKE
                 strokeWidth = 1f * scale
             }
-            canvas.drawRoundRect(mapRect, cornerRadius * 0.6f, cornerRadius * 0.6f, mapBorder)
+            canvas.drawRoundRect(mapRect, cornerRadius * 0.5f, cornerRadius * 0.5f, mapBorder)
 
             // Red Pin in Center of Map
             val pinPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.rgb(239, 68, 68) // Bright red
                 style = Paint.Style.FILL
+                setShadowLayer(4f, 0f, 2f, Color.argb(160, 0, 0, 0))
             }
-            canvas.drawCircle(mapRect.centerX(), mapRect.centerY(), 7f * scale, pinPaint)
+            canvas.drawCircle(mapRect.centerX(), mapRect.centerY() - (2f * scale), 7.5f * scale, pinPaint)
             val pinHole = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                 color = Color.WHITE
                 style = Paint.Style.FILL
             }
-            canvas.drawCircle(mapRect.centerX(), mapRect.centerY(), 2.8f * scale, pinHole)
+            canvas.drawCircle(mapRect.centerX(), mapRect.centerY() - (2f * scale), 3f * scale, pinHole)
         }
 
-        // 4. Draw QR Code (Right side)
-        if (qrBitmap != null) {
-            val qrLeft = cardRect.right - cardPadding - qrSize
-            val qrRect = RectF(
-                qrLeft,
-                cardRect.top + cardPadding + (scale * 2),
-                qrLeft + qrSize,
-                cardRect.top + cardPadding + (scale * 2) + qrSize
-            )
-            val qrBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.WHITE
-                style = Paint.Style.FILL
+        // 6. Draw QR Code (Right side)
+        if (showQr && (gpsData.latitude != 0.0 || gpsData.longitude != 0.0)) {
+            val qrBitmap = QrCodeGenerator.generateLocationQr(gpsData.latitude, gpsData.longitude, sideSize.toInt())
+            if (qrBitmap != null) {
+                val qrLeft = cardRect.right - cardPadding - sideSize
+                val qrRect = RectF(
+                    qrLeft,
+                    cardRect.top + cardPadding,
+                    qrLeft + sideSize,
+                    cardRect.top + cardPadding + sideSize
+                )
+                val qrBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.WHITE
+                    style = Paint.Style.FILL
+                }
+                canvas.drawRoundRect(qrRect, cornerRadius * 0.45f, cornerRadius * 0.45f, qrBgPaint)
+                canvas.drawBitmap(qrBitmap, null, qrRect, null)
             }
-            canvas.drawRoundRect(qrRect, 8f * scale, 8f * scale, qrBgPaint)
-            canvas.drawBitmap(qrBitmap, null, qrRect, null)
         }
 
-        // 5. Draw Top-Right Watermark Badge: [GPS Map Camera]
+        // 7. Draw Top-Right Watermark Badge: [GPS Map Camera]
         val badgeText = watermarkText
-        val badgePaddingH = 8f * scale
-        val badgePaddingV = 4f * scale
+        val badgePaddingH = 7f * scale
+        val badgePaddingV = 3.5f * scale
         val badgeTextW = badgePaint.measureText(badgeText)
-        val badgeW = badgeTextW + (badgePaddingH * 2) + (14f * scale)
+        val badgeW = badgeTextW + (badgePaddingH * 2) + (12f * scale)
         val badgeH = badgeTextSize + (badgePaddingV * 2)
-        val badgeRight = if (qrBitmap != null) cardRect.right - cardPadding - qrSize - (10f * scale) else cardRect.right - cardPadding
+        val badgeRight = if (showQr && (gpsData.latitude != 0.0 || gpsData.longitude != 0.0)) {
+            cardRect.right - cardPadding - sideSize - (10f * scale)
+        } else cardRect.right - cardPadding
+
         val badgeRect = RectF(
             badgeRight - badgeW,
-            cardRect.top + cardPadding - (2f * scale),
+            cardRect.top + cardPadding - (1.5f * scale),
             badgeRight,
-            cardRect.top + cardPadding - (2f * scale) + badgeH
+            cardRect.top + cardPadding - (1.5f * scale) + badgeH
         )
 
         val badgeBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = Color.argb(160, 30, 41, 59)
+            color = Color.argb(170, 30, 41, 59)
             style = Paint.Style.FILL
         }
-        canvas.drawRoundRect(badgeRect, 6f * scale, 6f * scale, badgeBgPaint)
+        canvas.drawRoundRect(badgeRect, 5f * scale, 5f * scale, badgeBgPaint)
 
-        // Draw small camera icon dot in badge
+        // Draw camera icon dot in badge
         val badgeDotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.rgb(56, 189, 248) // Sky blue
         }
-        canvas.drawCircle(badgeRect.left + (8f * scale), badgeRect.centerY(), 3.5f * scale, badgeDotPaint)
-        canvas.drawText(badgeText, badgeRect.left + (16f * scale), badgeRect.centerY() + (badgeTextSize * 0.35f), badgePaint)
+        canvas.drawCircle(badgeRect.left + (7f * scale), badgeRect.centerY(), 3f * scale, badgeDotPaint)
+        canvas.drawText(badgeText, badgeRect.left + (14f * scale), badgeRect.centerY() + (badgeTextSize * 0.35f), badgePaint)
 
-        // 6. Draw Content Lines
-        val contentX = availableContentLeft
+        // 8. Draw Content Lines
+        val contentX = finalContentLeft
         var currentY = cardRect.top + cardPadding + titleTextSize
 
         // Line 1: Headline (Guwahati, Assam, India 🇮🇳)
         canvas.drawText(headline, contentX, currentY, titlePaint)
 
-        // Lines 2-4: Full Address wrapped without ellipsis (...)
-        currentY += titleTextSize * 0.3f
+        // Lines 2..N: Full Address wrapped without ellipsis (...)
+        currentY += 4f * scale
         for (line in addressLines) {
             currentY += bodyTextSize + lineSpacing
             canvas.drawText(line, contentX, currentY, bodyPaint)
         }
 
         // Line: Coordinates
-        currentY += bodyTextSize + (6f * scale)
+        currentY += coordTextSize + lineSpacing
         canvas.drawText(coordsText, contentX, currentY, coordPaint)
 
         // Line: Date and Time (Tuesday, 10/11/2026 11:28 AM)

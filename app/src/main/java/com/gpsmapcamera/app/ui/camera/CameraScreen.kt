@@ -66,6 +66,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.gpsmapcamera.app.core.overlay.MapTileType
 import com.gpsmapcamera.app.ui.components.LiveStampOverlay
 import com.gpsmapcamera.app.ui.components.StatusIndicators
 import kotlinx.coroutines.delay
@@ -131,8 +132,8 @@ fun CameraScreen(
                 }
                 .pointerInput(Unit) {
                     detectTransformGestures { _, _, zoom, _ ->
-                        currentZoom = (currentZoom + (zoom - 1f) * 0.5f).coerceIn(0f, 1f)
-                        viewModel.cameraController.setLinearZoom(currentZoom)
+                        val newRatio = (uiState.currentZoomRatio * zoom).coerceIn(1.0f, 6.0f)
+                        viewModel.setZoomRatio(newRatio)
                     }
                 }
         )
@@ -314,6 +315,30 @@ fun CameraScreen(
 
                 Spacer(modifier = Modifier.size(8.dp))
 
+                // Map Type Pill (STREET / SATELLITE / OSM)
+                Box(
+                    modifier = Modifier
+                        .height(36.dp)
+                        .clip(RoundedCornerShape(18.dp))
+                        .background(Color(0x80000000))
+                        .clickable { viewModel.cycleMapTileType() }
+                        .padding(horizontal = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = when (uiState.mapTileType) {
+                            MapTileType.GOOGLE_STREET -> "STREET"
+                            MapTileType.GOOGLE_HYBRID -> "SATELLITE"
+                            MapTileType.OSM -> "OSM"
+                        },
+                        color = Color(0xFF38BDF8),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                Spacer(modifier = Modifier.size(8.dp))
+
                 // DMS / Decimal Toggle Pill
                 Box(
                     modifier = Modifier
@@ -334,7 +359,7 @@ fun CameraScreen(
             }
         }
 
-        // 5. Bottom Layer: Live Stamp Overlay + Mode Tabs + Shutter Controls
+        // 5. Bottom Layer: Live Stamp Overlay + 1x/2x/3x Zoom + Mode Tabs + Shutter Controls
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -352,7 +377,47 @@ fun CameraScreen(
                 watermarkText = "GPS MAP CAMERA"
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // 1x, 2x, 3x Quick Zoom Pill
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 6.dp),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Color(0x99000000))
+                        .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(20.dp))
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    listOf(1.0f to "1x", 2.0f to "2x", 3.0f to "3x").forEach { (ratio, label) ->
+                        val isSelected = kotlin.math.abs(uiState.currentZoomRatio - ratio) < 0.25f
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .clip(CircleShape)
+                                .background(if (isSelected) Color(0xFFFFD54F) else Color.Transparent)
+                                .clickable { viewModel.setZoomRatio(ratio) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = label,
+                                color = if (isSelected) Color.Black else Color.White,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
 
             // Photo / Video Mode Selector Tabs
             if (!uiState.isRecording) {
