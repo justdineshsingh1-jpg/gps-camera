@@ -321,7 +321,7 @@ class CameraViewModel @Inject constructor(
         val currentState = _uiState.value
         if (currentState.isRecording || currentState.isCapturing) return
 
-        val rawVideoFile = mediaStorageManager.createTempRawVideoFile()
+        val rawVideoFile = File(getApplication<Application>().cacheDir, "raw_video_${System.currentTimeMillis()}.mp4")
         currentRecordingFile = rawVideoFile
 
         _uiState.update {
@@ -387,7 +387,7 @@ class CameraViewModel @Inject constructor(
 
         viewModelScope.launch {
             try {
-                val outputVideoFile = mediaStorageManager.createTempRawVideoFile()
+                val outputVideoFile = File(getApplication<Application>().cacheDir, "stamped_${System.currentTimeMillis()}.mp4")
 
                 val stampedFile = videoStampTransformer.burnStampIntoVideo(
                     rawVideoFile = rawFile,
@@ -399,7 +399,7 @@ class CameraViewModel @Inject constructor(
                     useDms = currentState.useDms
                 )
 
-                val saveResult = mediaStorageManager.saveStampedVideo(stampedFile, currentState.gpsData)
+                val saveResult = mediaStorageManager.saveStampedVideo(stampedFile, System.currentTimeMillis())
 
                 rawFile.delete()
                 outputVideoFile.delete()
