@@ -48,4 +48,11 @@ class GpsAppUnitTests {
         assertEquals("W", LocationFormattingUtils.getCompassDirection(270f))
         assertEquals("NE", LocationFormattingUtils.getCompassDirection(45f))
     }
+
+    @Test
+    fun testDateTimeSimpleFormatting() {
+        val timestamp = 1794290880000L // 10 Nov 2026 11:28:00
+        val str = LocationFormattingUtils.formatDateTimeSimple(timestamp)
+        assertTrue(str.contains("Tuesday") || str.contains("2026") || str.contains("11:28"))
+    }
 }

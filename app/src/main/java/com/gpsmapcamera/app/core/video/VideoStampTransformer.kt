@@ -14,8 +14,6 @@ import androidx.media3.transformer.EditedMediaItem
 import androidx.media3.transformer.Effects
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
-import androidx.media3.transformer.ProgressHolder
-import androidx.media3.transformer.TransformationRequest
 import androidx.media3.transformer.Transformer
 import com.google.common.collect.ImmutableList
 import com.gpsmapcamera.app.core.location.GpsData
@@ -38,6 +36,7 @@ class VideoStampTransformer @Inject constructor(
     /**
      * Burns the GPS Map Camera stamp into every video frame using hardware-accelerated
      * Media3 Transformer and OpenGL OverlayEffect.
+     * Media3 Transformer MUST be started on Dispatchers.Main (requires Android Looper).
      */
     @OptIn(UnstableApi::class)
     suspend fun burnStampIntoVideo(
@@ -48,56 +47,63 @@ class VideoStampTransformer @Inject constructor(
         mapThumbnail: Bitmap?,
         showQr: Boolean,
         useDms: Boolean
-    ): File = withContext(Dispatchers.IO) {
-        suspendCancellableCoroutine { continuation ->
-            try {
-                // 1. Generate full-resolution transparent canvas stamp
-                val referenceWidth = 1920
-                val referenceHeight = 1080
-                val blankBase = Bitmap.createBitmap(referenceWidth, referenceHeight, Bitmap.Config.ARGB_8888)
+    ): File {
+        // 1. Generate full-resolution transparent canvas stamp on background thread
+        val stampedFullFrame = withContext(Dispatchers.Default) {
+            val referenceWidth = 1920
+            val referenceHeight = 1080
+            val blankBase = Bitmap.createBitmap(referenceWidth, referenceHeight, Bitmap.Config.ARGB_8888)
 
-                val stampedFullFrame = PhotoStampRenderer.createStampedBitmap(
-                    sourceBitmap = blankBase,
-                    gpsData = gpsData,
-                    isOnline = isOnline,
-                    mapThumbnail = mapThumbnail,
-                    showQr = showQr,
-                    useDms = useDms,
-                    watermarkText = "GPS MAP CAMERA"
-                )
+            PhotoStampRenderer.createStampedBitmap(
+                sourceBitmap = blankBase,
+                gpsData = gpsData,
+                isOnline = isOnline,
+                mapThumbnail = mapThumbnail,
+                showQr = showQr,
+                useDms = useDms,
+                watermarkText = "GPS Map Camera"
+            )
+        }
 
-                // 2. Build Media3 BitmapOverlay
-                val bitmapOverlay = BitmapOverlay.createStaticBitmapOverlay(stampedFullFrame)
-                val overlayEffect = OverlayEffect(ImmutableList.of<TextureOverlay>(bitmapOverlay))
+        // 2. Build and start Media3 Transformer strictly on Dispatchers.Main
+        return withContext(Dispatchers.Main) {
+            suspendCancellableCoroutine { continuation ->
+                try {
+                    val bitmapOverlay = BitmapOverlay.createStaticBitmapOverlay(stampedFullFrame)
+                    val overlayEffect = OverlayEffect(ImmutableList.of<TextureOverlay>(bitmapOverlay))
 
-                // 3. Configure Media3 Transformer with H.264 / AAC hardware acceleration
-                val editedMediaItem = EditedMediaItem.Builder(MediaItem.fromUri(Uri.fromFile(rawVideoFile)))
-                    .setEffects(Effects(emptyList(), listOf(overlayEffect)))
-                    .build()
+                    val editedMediaItem = EditedMediaItem.Builder(MediaItem.fromUri(Uri.fromFile(rawVideoFile)))
+                        .setEffects(Effects(emptyList(), listOf(overlayEffect)))
+                        .build()
 
-                val transformer = Transformer.Builder(context)
-                    .addListener(object : Transformer.Listener {
-                        override fun onCompleted(composition: Composition, exportResult: ExportResult) {
-                            continuation.resume(outputVideoFile)
+                    val transformer = Transformer.Builder(context)
+                        .addListener(object : Transformer.Listener {
+                            override fun onCompleted(composition: Composition, exportResult: ExportResult) {
+                                continuation.resume(outputVideoFile)
+                            }
+
+                            override fun onError(
+                                composition: Composition,
+                                exportResult: ExportResult,
+                                exportException: ExportException
+                            ) {
+                                continuation.resumeWithException(exportException)
+                            }
+                        })
+                        .build()
+
+                    transformer.start(editedMediaItem, outputVideoFile.absolutePath)
+
+                    continuation.invokeOnCancellation {
+                        try {
+                            transformer.cancel()
+                        } catch (e: Exception) {
+                            // Ignored on cancellation
                         }
-
-                        override fun onError(
-                            composition: Composition,
-                            exportResult: ExportResult,
-                            exportException: ExportException
-                        ) {
-                            continuation.resumeWithException(exportException)
-                        }
-                    })
-                    .build()
-
-                transformer.start(editedMediaItem, outputVideoFile.absolutePath)
-
-                continuation.invokeOnCancellation {
-                    transformer.cancel()
+                    }
+                } catch (e: Exception) {
+                    continuation.resumeWithException(e)
                 }
-            } catch (e: Exception) {
-                continuation.resumeWithException(e)
             }
         }
     }

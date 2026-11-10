@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -25,7 +26,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gpsmapcamera.app.core.location.GpsData
@@ -39,58 +39,104 @@ fun LiveStampOverlay(
     mapThumbnail: Bitmap? = null,
     showQr: Boolean = true,
     useDms: Boolean = false,
-    watermarkText: String = "GPS MAP CAMERA",
+    watermarkText: String = "GPS Map Camera",
     modifier: Modifier = Modifier
 ) {
     val cornerRadius = 14.dp
     val qrBitmap = remember(gpsData.latitude, gpsData.longitude, showQr) {
-        if (showQr) QrCodeGenerator.generateLocationQr(gpsData.latitude, gpsData.longitude, 140) else null
+        if (showQr && (gpsData.latitude != 0.0 || gpsData.longitude != 0.0)) {
+            QrCodeGenerator.generateLocationQr(gpsData.latitude, gpsData.longitude, 160)
+        } else null
     }
+
+    val countryFlag = when (gpsData.country?.trim()?.lowercase()) {
+        "india", "in", "ind" -> "🇮🇳"
+        "united states", "usa", "us" -> "🇺🇸"
+        "united kingdom", "uk", "gb" -> "🇬🇧"
+        "canada", "ca" -> "🇨🇦"
+        "australia", "au" -> "🇦🇺"
+        else -> "🇮🇳"
+    }
+
+    val headline = when {
+        !gpsData.city.isNullOrBlank() && !gpsData.state.isNullOrBlank() && !gpsData.country.isNullOrBlank() ->
+            "${gpsData.city}, ${gpsData.state}, ${gpsData.country} $countryFlag"
+        !gpsData.city.isNullOrBlank() && !gpsData.state.isNullOrBlank() ->
+            "${gpsData.city}, ${gpsData.state} $countryFlag"
+        !gpsData.city.isNullOrBlank() -> gpsData.city
+        !gpsData.addressLine.isNullOrBlank() -> gpsData.addressLine.take(40)
+        gpsData.latitude != 0.0 -> "GPS Location: ${gpsData.plusCode}"
+        else -> "GPS Map Camera"
+    }
+
+    val addressText = gpsData.addressLine ?: if (gpsData.latitude != 0.0) "Plus Code: ${gpsData.plusCode}" else "Acquiring location..."
+    val coordsText = if (useDms) {
+        LocationFormattingUtils.formatDms(gpsData.latitude, gpsData.longitude)
+    } else {
+        String.format(java.util.Locale.US, "Lat %.6f° Long %.6f°", gpsData.latitude, gpsData.longitude)
+    }
+    val dateTimeText = LocationFormattingUtils.formatDateTimeSimple(gpsData.timestamp)
+    val noteText = "Note : Captured by $watermarkText"
 
     Box(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(cornerRadius))
-            .background(Color(0xD90E141B))
-            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(cornerRadius))
-            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .background(Color(0xD90F172A)) // Slate 900 translucent
+            .border(1.dp, Color(0x38FFFFFF), RoundedCornerShape(cornerRadius))
+            .padding(10.dp)
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
 
-            // Watermark Row
-            if (watermarkText.isNotBlank()) {
+            // Top-right App Badge Row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End
+            ) {
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.End
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(Color(0x991E293B))
+                        .padding(horizontal = 7.dp, vertical = 2.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Box(
+                        modifier = Modifier
+                            .size(6.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF38BDF8))
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
                     Text(
                         text = watermarkText,
-                        color = Color(0x99FFFFFF),
+                        color = Color.White,
                         fontSize = 9.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.sp
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
 
+            Spacer(modifier = Modifier.height(4.dp))
+
+            // Main Body: [Map Thumbnail] [Address Block (No '...')] [QR Code]
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 1. Online Map Thumbnail (Strictly omitted when offline)
+                // 1. Online Map Thumbnail with Red Pin & Google Logo
                 if (isOnline) {
                     Box(
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(76.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF263238))
+                            .background(Color(0xFF1E293B))
                             .border(1.dp, Color(0x44FFFFFF), RoundedCornerShape(8.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         if (mapThumbnail != null) {
                             Image(
                                 bitmap = mapThumbnail.asImageBitmap(),
-                                contentDescription = "Map Tile",
+                                contentDescription = "Map Thumbnail",
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.matchParentSize()
                             )
@@ -98,21 +144,32 @@ fun LiveStampOverlay(
                             Text(
                                 text = "MAP",
                                 color = Color(0x88FFFFFF),
-                                fontSize = 11.sp,
+                                fontSize = 10.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
 
+                        // Google Watermark
+                        Text(
+                            text = "Google",
+                            color = Color(0xDDFFFFFF),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .align(Alignment.BottomStart)
+                                .padding(3.dp)
+                        )
+
                         // Center Red Pin
                         Box(
                             modifier = Modifier
-                                .size(10.dp)
+                                .size(9.dp)
                                 .clip(CircleShape)
-                                .background(Color.Red)
+                                .background(Color(0xFFEF4444))
                         )
                         Box(
                             modifier = Modifier
-                                .size(4.dp)
+                                .size(3.dp)
                                 .clip(CircleShape)
                                 .background(Color.White)
                         )
@@ -120,81 +177,63 @@ fun LiveStampOverlay(
                     Spacer(modifier = Modifier.width(10.dp))
                 }
 
-                // 2. Text Information Block (Reflows to full card width when offline!)
+                // 2. Center Text Block: Full Wrapped Address with NO ellipsis
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .padding(end = 8.dp)
+                        .padding(end = 6.dp)
                 ) {
-                    // Line 1: City, State or Location Name
-                    val cityState = when {
-                        !gpsData.city.isNullOrBlank() && !gpsData.state.isNullOrBlank() -> "${gpsData.city}, ${gpsData.state}"
-                        !gpsData.city.isNullOrBlank() -> gpsData.city
-                        !gpsData.addressLine.isNullOrBlank() -> gpsData.addressLine.take(30)
-                        else -> "Location: ${gpsData.plusCode}"
-                    }
+                    // Headline: City, State, Country Flag
                     Text(
-                        text = cityState,
+                        text = headline,
                         color = Color.White,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        lineHeight = 16.sp
                     )
 
-                    // Line 2: Full Address / Plus code fallback
-                    val addressText = gpsData.addressLine ?: "Plus Code: ${gpsData.plusCode}"
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    // Full Address: Wrapped across multiple lines without '...'
                     Text(
                         text = addressText,
+                        color = Color(0xFFF1F5F9),
+                        fontSize = 10.5.sp,
+                        fontWeight = FontWeight.Normal,
+                        lineHeight = 13.5.sp,
+                        maxLines = 3
+                    )
+
+                    Spacer(modifier = Modifier.height(3.dp))
+
+                    // Coordinates
+                    Text(
+                        text = coordsText,
                         color = Color(0xFFE2E8F0),
                         fontSize = 10.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        fontWeight = FontWeight.Medium
                     )
 
-                    // Line 3: Lat/Long + Plus Code (High Visibility Warm Gold)
-                    val coordsText = if (useDms) {
-                        LocationFormattingUtils.formatDms(gpsData.latitude, gpsData.longitude)
-                    } else {
-                        LocationFormattingUtils.formatDecimal(gpsData.latitude, gpsData.longitude)
-                    }
+                    // Date and Time
                     Text(
-                        text = "$coordsText | ${gpsData.plusCode}",
-                        color = Color(0xFFFFCC00),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        text = dateTimeText,
+                        color = Color(0xFFCBD5E1),
+                        fontSize = 9.5.sp
                     )
 
-                    // Line 4: Date, Time with Weekday & GMT
+                    // Note
                     Text(
-                        text = LocationFormattingUtils.formatDateTimeWithGmt(gpsData.timestamp),
-                        color = Color(0xFFB0BEC5),
-                        fontSize = 9.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-
-                    // Line 5: Telemetry
-                    val altStr = LocationFormattingUtils.formatAltitude(gpsData.altitudeMeters)
-                    val speedStr = LocationFormattingUtils.formatSpeedKmH(gpsData.speedMps)
-                    val compassStr = "${gpsData.compassDegrees.toInt()}° ${gpsData.compassDirection}"
-                    val accStr = LocationFormattingUtils.formatAccuracy(gpsData.accuracyMeters)
-                    Text(
-                        text = "Elev: $altStr | Speed: $speedStr | $compassStr | Acc: $accStr",
-                        color = Color(0xFF90A4AE),
-                        fontSize = 9.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        text = noteText,
+                        color = Color(0xFF94A3B8),
+                        fontSize = 9.sp
                     )
                 }
 
-                // 3. Right Side: On-device QR Code
+                // 3. Right: QR Code
                 if (showQr && qrBitmap != null) {
                     Box(
                         modifier = Modifier
-                            .size(68.dp)
+                            .size(70.dp)
                             .clip(RoundedCornerShape(6.dp))
                             .background(Color.White)
                             .padding(2.dp),
@@ -203,7 +242,7 @@ fun LiveStampOverlay(
                         Image(
                             bitmap = qrBitmap.asImageBitmap(),
                             contentDescription = "Location QR Code",
-                            modifier = Modifier.size(64.dp)
+                            modifier = Modifier.size(66.dp)
                         )
                     }
                 }

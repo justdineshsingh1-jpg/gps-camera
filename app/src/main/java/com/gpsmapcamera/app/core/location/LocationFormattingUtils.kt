@@ -67,4 +67,9 @@ object LocationFormattingUtils {
 
         return "$baseDateStr $gmtString"
     }
+
+    fun formatDateTimeSimple(timestamp: Long): String {
+        val sdf = SimpleDateFormat("EEEE, dd/MM/yyyy hh:mm a", Locale.US)
+        return sdf.format(Date(timestamp))
+    }
 }

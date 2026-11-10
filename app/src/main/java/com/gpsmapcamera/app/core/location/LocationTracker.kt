@@ -52,6 +52,18 @@ class LocationTracker @Inject constructor(
             trySend(latestGpsData)
         }
 
+        // Immediately emit cached/last known location to prevent Lat 0.000000 on startup
+        try {
+            fusedClient.lastLocation.addOnSuccessListener { lastLoc ->
+                if (lastLoc != null) updateAndEmit(lastLoc)
+            }
+            val lastKnown = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+                ?: locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+            if (lastKnown != null) {
+                updateAndEmit(lastKnown)
+            }
+        } catch (ignored: Exception) {}
+
         // Try FusedLocationProviderClient first
         var usedFused = false
         val fusedCallback = object : LocationCallback() {

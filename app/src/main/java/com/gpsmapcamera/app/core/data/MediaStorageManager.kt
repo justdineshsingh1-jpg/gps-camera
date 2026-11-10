@@ -48,9 +48,10 @@ class MediaStorageManager @Inject constructor(
 
         try {
             // Write bitmap to temporary cache file first to attach EXIF tags properly
-            val tempFile = File(context.cacheDir, fileName)
+            val tempFile = File.createTempFile("gpsmap_", ".jpg", context.cacheDir)
             FileOutputStream(tempFile).use { out ->
                 bitmap.compress(Bitmap.CompressFormat.JPEG, quality, out)
+                out.flush()
             }
 
             // Write EXIF to tempFile
@@ -61,6 +62,7 @@ class MediaStorageManager @Inject constructor(
                 tempFile.inputStream().use { inputStream ->
                     inputStream.copyTo(outputStream)
                 }
+                outputStream.flush()
             }
             tempFile.delete()
 
