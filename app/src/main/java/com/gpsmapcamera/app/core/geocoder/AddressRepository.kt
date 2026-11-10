@@ -72,7 +72,14 @@ class AddressRepository @Inject constructor(
             )
         }
 
-        // Layer 3: Final Fallback (Coordinates + Plus Code)
+        // Layer 3: Embedded Northeast India Offline Database (Hills, Highways, Border regions)
+        val offlineNortheastResult = NortheastOfflineDatabase.resolveOffline(latitude, longitude)
+        if (offlineNortheastResult != null) {
+            cacheAddress(latitude, longitude, offlineNortheastResult)
+            return@withContext offlineNortheastResult
+        }
+
+        // Layer 4: Final Fallback (Coordinates + Plus Code)
         val plusCode = OpenLocationCode.encode(latitude, longitude)
         val fallbackAddress = "Plus Code: $plusCode"
         ResolvedAddress(

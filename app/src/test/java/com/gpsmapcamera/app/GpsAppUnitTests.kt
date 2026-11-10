@@ -63,4 +63,24 @@ class GpsAppUnitTests {
         assertTrue(types.contains(com.gpsmapcamera.app.core.overlay.MapTileType.GOOGLE_STREET))
         assertTrue(types.contains(com.gpsmapcamera.app.core.overlay.MapTileType.GOOGLE_HYBRID))
     }
+
+    @Test
+    fun testNortheastOfflineDatabase_Resolution() {
+        // Test Guwahati City resolution offline
+        val guwahatiAddr = com.gpsmapcamera.app.core.geocoder.NortheastOfflineDatabase.resolveOffline(26.1420, 91.7898)
+        assertTrue("Must resolve Guwahati", guwahatiAddr != null)
+        assertEquals("Assam", guwahatiAddr?.state)
+        assertEquals("India", guwahatiAddr?.country)
+
+        // Test Remote Meghalaya Hill (Shillong Peak) offline
+        val shillongHill = com.gpsmapcamera.app.core.geocoder.NortheastOfflineDatabase.resolveOffline(25.5348, 91.8542)
+        assertTrue("Must resolve Meghalaya hill station offline", shillongHill != null)
+        assertEquals("Meghalaya", shillongHill?.state)
+        assertTrue(shillongHill?.formattedAddress?.contains("East Khasi Hills") == true)
+
+        // Test Arunachal Mountain (Tawang) offline
+        val tawangMountain = com.gpsmapcamera.app.core.geocoder.NortheastOfflineDatabase.resolveOffline(27.5861, 91.8594)
+        assertTrue("Must resolve Arunachal Pradesh mountain offline", tawangMountain != null)
+        assertEquals("Arunachal Pradesh", tawangMountain?.state)
+    }
 }

@@ -29,12 +29,16 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
@@ -83,9 +87,56 @@ fun GalleryScreen(
         refreshMedia()
     }
 
+    var showDeleteConfirmation by remember { mutableStateOf(false) }
+
     if (selectedItem != null) {
         // Fullscreen Viewer
         val item = selectedItem!!
+
+        // Deletion Confirmation Dialog
+        if (showDeleteConfirmation) {
+            AlertDialog(
+                onDismissRequest = { showDeleteConfirmation = false },
+                title = {
+                    Text(
+                        text = "Delete ${if (item.isVideo) "Video" else "Photo"}?",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White
+                    )
+                },
+                text = {
+                    Text(
+                        text = "Are you sure you want to permanently delete this ${if (item.isVideo) "video" else "photo"}? This action cannot be undone.",
+                        color = Color(0xFFCBD5E1)
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            showDeleteConfirmation = false
+                            scope.launch {
+                                galleryRepository.deleteMedia(item.uri)
+                                selectedItem = null
+                                refreshMedia()
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC2626))
+                    ) {
+                        Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                    }
+                },
+                dismissButton = {
+                    TextButton(
+                        onClick = { showDeleteConfirmation = false }
+                    ) {
+                        Text("Cancel", color = Color.White)
+                    }
+                },
+                containerColor = Color(0xFF1E293B),
+                shape = RoundedCornerShape(16.dp)
+            )
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -122,13 +173,7 @@ fun GalleryScreen(
                 )
 
                 IconButton(
-                    onClick = {
-                        scope.launch {
-                            galleryRepository.deleteMedia(item.uri)
-                            selectedItem = null
-                            refreshMedia()
-                        }
-                    },
+                    onClick = { showDeleteConfirmation = true },
                     modifier = Modifier.clip(CircleShape).background(Color(0x80000000))
                 ) {
                     Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color(0xFFFF5252))
