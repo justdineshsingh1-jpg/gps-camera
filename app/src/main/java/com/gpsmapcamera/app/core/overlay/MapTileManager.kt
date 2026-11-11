@@ -1,8 +1,12 @@
 package com.gpsmapcamera.app.core.overlay
 
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.util.LruCache
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
+import java.io.FileOutputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
@@ -23,7 +27,34 @@ enum class MapTileType(val label: String) {
 }
 
 @Singleton
-class MapTileManager @Inject constructor() {
+class MapTileManager @Inject constructor(
+    @ApplicationContext private val context: Context
+) {
+
+    /** Tiles seen online are kept on disk so the stamp still has a real map offline in known areas. */
+    private val diskDir: File by lazy { File(context.cacheDir, "map_tiles").apply { mkdirs() } }
+
+    private fun readDisk(key: String): Bitmap? = try {
+        val f = File(diskDir, "$key.png")
+        if (f.exists()) BitmapFactory.decodeFile(f.absolutePath) else null
+    } catch (e: Exception) {
+        null
+    }
+
+    private fun writeDisk(key: String, bitmap: Bitmap) {
+        try {
+            val f = File(diskDir, "$key.png")
+            FileOutputStream(f).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            // Keep the cache bounded (~300 tiles, oldest first).
+            val files = diskDir.listFiles() ?: return
+            if (files.size > 300) {
+                files.sortedBy { it.lastModified() }.take(files.size - 300).forEach { it.delete() }
+            }
+        } catch (e: Exception) {
+            // Cache is best-effort
+        }
+    }
+
 
     // Memory cache for tiles (max 40 bitmaps)
     private val memoryCache = object : LruCache<String, Bitmap>(40) {
@@ -41,13 +72,18 @@ class MapTileManager @Inject constructor() {
         zoom: Int = 16,
         tileType: MapTileType = MapTileType.GOOGLE_STREET
     ): Bitmap? = withContext(Dispatchers.IO) {
-        if (!isOnline || (latitude == 0.0 && longitude == 0.0)) return@withContext null
+        if (latitude == 0.0 && longitude == 0.0) return@withContext null
 
         val tileCoord = latLonToTileCoords(latitude, longitude, zoom)
         val cacheKey = "${tileType.name}_${tileCoord.zoom}_${tileCoord.x}_${tileCoord.y}"
 
-        // Check memory cache first
+        // Check memory cache first, then the offline disk cache
         memoryCache.get(cacheKey)?.let { return@withContext it }
+        readDisk(cacheKey)?.let {
+            memoryCache.put(cacheKey, it)
+            return@withContext it
+        }
+        if (!isOnline) return@withContext null
 
         // Fetch online with 2-second strict timeout
         return@withContext withTimeoutOrNull(2200L) {
@@ -68,6 +104,7 @@ class MapTileManager @Inject constructor() {
                 val bitmap = fetchTileBitmap(urlStr)
                 if (bitmap != null) {
                     memoryCache.put(cacheKey, bitmap)
+                    writeDisk(cacheKey, bitmap)
                     return@withTimeoutOrNull bitmap
                 }
             }

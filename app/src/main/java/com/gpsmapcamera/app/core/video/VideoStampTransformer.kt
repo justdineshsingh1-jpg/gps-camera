@@ -17,6 +17,7 @@ import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
 import com.google.common.collect.ImmutableList
 import com.gpsmapcamera.app.core.location.GpsData
+import com.gpsmapcamera.app.core.overlay.BrandLogo
 import com.gpsmapcamera.app.core.overlay.PhotoStampRenderer
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -47,7 +48,8 @@ private class DynamicGpsStampOverlay(
     private val height: Int,
     private val isOnline: Boolean,
     private val showQr: Boolean,
-    private val useDms: Boolean
+    private val useDms: Boolean,
+    private val brandLogo: Bitmap?
 ) : BitmapOverlay() {
 
     private val blankBase: Bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
@@ -77,7 +79,8 @@ private class DynamicGpsStampOverlay(
             mapThumbnail = sample.mapThumbnail,
             showQr = showQr,
             useDms = useDms,
-            watermarkText = "GPS Map Camera"
+            watermarkText = "GPS Map Camera",
+            brandLogo = brandLogo
         )
         cachedIndex = idx
         cachedBitmap = rendered
@@ -144,7 +147,8 @@ class VideoStampTransformer @Inject constructor(
                         height = targetHeight,
                         isOnline = isOnline,
                         showQr = showQr,
-                        useDms = useDms
+                        useDms = useDms,
+                        brandLogo = BrandLogo.bitmap(context)
                     )
                     val overlayEffect = OverlayEffect(ImmutableList.of<TextureOverlay>(bitmapOverlay))
 

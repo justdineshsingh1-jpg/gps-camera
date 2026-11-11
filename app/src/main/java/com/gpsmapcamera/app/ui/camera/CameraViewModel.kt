@@ -14,23 +14,31 @@ import com.gpsmapcamera.app.core.camera.CameraController
 import com.gpsmapcamera.app.core.connectivity.ConnectivityMode
 import com.gpsmapcamera.app.core.connectivity.NetworkObserver
 import com.gpsmapcamera.app.core.connectivity.NetworkStatus
+import com.gpsmapcamera.app.core.data.GalleryRepository
 import com.gpsmapcamera.app.core.data.MediaStorageManager
 import com.gpsmapcamera.app.core.geocoder.AddressRepository
 import com.gpsmapcamera.app.core.location.GpsData
 import com.gpsmapcamera.app.core.location.LocationTracker
+import com.gpsmapcamera.app.core.overlay.BrandLogo
 import com.gpsmapcamera.app.core.overlay.MapTileManager
 import com.gpsmapcamera.app.core.overlay.MapTileType
 import com.gpsmapcamera.app.core.overlay.PhotoStampRenderer
+import com.gpsmapcamera.app.core.overlay.StampPreview
 import com.gpsmapcamera.app.core.video.StampSample
 import com.gpsmapcamera.app.core.video.VideoStampTransformer
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import javax.inject.Inject
 import kotlin.math.abs
@@ -60,6 +68,7 @@ data class CameraUiState(
     val isRecordingPaused: Boolean = false,
     val recordingDurationSeconds: Int = 0,
     val lastCapturedUri: Uri? = null,
+    val lastCapturedIsVideo: Boolean = false,
     val showQr: Boolean = true,
     val useDms: Boolean = false,
     val flashMode: AppFlashMode = AppFlashMode.AUTO,
@@ -84,8 +93,32 @@ class CameraViewModel @Inject constructor(
     private val addressRepository: AddressRepository,
     private val mapTileManager: MapTileManager,
     private val mediaStorageManager: MediaStorageManager,
-    private val videoStampTransformer: VideoStampTransformer
+    private val videoStampTransformer: VideoStampTransformer,
+    private val galleryRepository: GalleryRepository
 ) : AndroidViewModel(application) {
+
+    private val brandLogo: Bitmap? by lazy { BrandLogo.bitmap(application) }
+
+    // ---- Live preview stamp (WYSIWYG) --------------------------------------------------------
+    // The preview shows a bitmap drawn by the same PhotoStampRenderer that burns the saved photo,
+    // at the preview's width, so layout, relative size and elements are identical.
+    private val previewWidthPx = MutableStateFlow(0)
+    private val _previewStamp = MutableStateFlow<Bitmap?>(null)
+    val previewStamp: StateFlow<Bitmap?> = _previewStamp.asStateFlow()
+
+    /** Called by the camera screen with the on-screen width (px) of the stamp area. */
+    fun setPreviewStampWidth(widthPx: Int) {
+        if (widthPx > 0) previewWidthPx.value = widthPx
+    }
+
+    private data class PreviewStampKey(
+        val widthPx: Int,
+        val gps: GpsData,
+        val isOnline: Boolean,
+        val map: Bitmap?,
+        val showQr: Boolean,
+        val useDms: Boolean
+    )
 
     private val _uiState = MutableStateFlow(CameraUiState())
     val uiState: StateFlow<CameraUiState> = _uiState.asStateFlow()
@@ -110,12 +143,50 @@ class CameraViewModel @Inject constructor(
             if (last != null && recordedDurationUs - last.presentationTimeUs < 500_000L) {
                 recordingTrack[recordingTrack.size - 1] = last.copy(gpsData = gps, mapThumbnail = state.mapThumbnail)
             } else {
-                recordingTrack.add(StampSample(recordedDurationUs, gps, if (state.isEffectiveOnline) state.mapThumbnail else null))
+                recordingTrack.add(StampSample(recordedDurationUs, gps, state.mapThumbnail))
             }
         }
     }
 
     init {
+        // Re-render the preview stamp when what it shows changes, at most ~1x per second.
+        viewModelScope.launch {
+            combine(_uiState, previewWidthPx) { state, width ->
+                PreviewStampKey(
+                    widthPx = width,
+                    gps = StampPreview.displayData(state.gpsData),
+                    isOnline = state.isEffectiveOnline,
+                    map = state.mapThumbnail,
+                    showQr = state.showQr,
+                    useDms = state.useDms
+                )
+            }
+                .distinctUntilChanged()
+                .conflate()
+                .collect { key ->
+                    if (key.widthPx > 0) {
+                        val rendered = withContext(Dispatchers.Default) {
+                            try {
+                                PhotoStampRenderer.renderStampOverlay(
+                                    widthPx = key.widthPx,
+                                    gpsData = key.gps,
+                                    isOnline = key.isOnline,
+                                    mapThumbnail = key.map,
+                                    showQr = key.showQr,
+                                    useDms = key.useDms,
+                                    watermarkText = STAMP_BRAND,
+                                    brandLogo = brandLogo
+                                )
+                            } catch (e: Exception) {
+                                null
+                            }
+                        }
+                        if (rendered != null) _previewStamp.value = rendered
+                        delay(PREVIEW_STAMP_INTERVAL_MS)
+                    }
+                }
+        }
+
         // Collect live GPS & Compass coordinates (1s interval)
         viewModelScope.launch {
             locationTracker.getLocationUpdates(1000L).collect { gps ->
@@ -172,13 +243,24 @@ class CameraViewModel @Inject constructor(
                     )
                 }
 
-                if (isOnline) {
-                    val tile = mapTileManager.getMapTileThumbnail(lat, lon, true, tileType = _uiState.value.mapTileType)
-                    _uiState.update { it.copy(mapThumbnail = tile) }
-                } else {
-                    _uiState.update { it.copy(mapThumbnail = null) }
-                }
+                // Online: fetch (and cache) the tile. Offline: use a cached tile if this area was seen before.
+                val tile = mapTileManager.getMapTileThumbnail(lat, lon, isOnline, tileType = _uiState.value.mapTileType)
+                _uiState.update { it.copy(mapThumbnail = tile) }
                 captureTrackSample()
+            }
+        }
+    }
+
+    /** Loads the newest photo/video saved by the app, for the round gallery thumbnail. */
+    fun refreshLastMedia() {
+        viewModelScope.launch {
+            val latest = try {
+                galleryRepository.getLatestMedia()
+            } catch (e: Exception) {
+                null
+            }
+            _uiState.update {
+                it.copy(lastCapturedUri = latest?.uri, lastCapturedIsVideo = latest?.isVideo == true)
             }
         }
     }
@@ -197,9 +279,9 @@ class CameraViewModel @Inject constructor(
 
         val lat = _uiState.value.gpsData.latitude
         val lon = _uiState.value.gpsData.longitude
-        if (_uiState.value.isEffectiveOnline && lat != 0.0) {
+        if (lat != 0.0 || lon != 0.0) {
             viewModelScope.launch {
-                val tile = mapTileManager.getMapTileThumbnail(lat, lon, true, tileType = nextType)
+                val tile = mapTileManager.getMapTileThumbnail(lat, lon, _uiState.value.isEffectiveOnline, tileType = nextType)
                 _uiState.update { it.copy(mapThumbnail = tile) }
             }
         }
@@ -232,11 +314,11 @@ class CameraViewModel @Inject constructor(
             } else {
                 ConnectivityMode.AUTO
             }
-            it.copy(
-                connectivityMode = nextMode,
-                mapThumbnail = if (nextMode == ConnectivityMode.FORCE_OFFLINE) null else it.mapThumbnail
-            )
+            it.copy(connectivityMode = nextMode)
         }
+        // Re-resolve address + map for the new mode (offline uses the on-device database & tile cache).
+        val gps = _uiState.value.gpsData
+        checkAndTriggerGeocoding(gps.latitude, gps.longitude, force = true)
     }
 
     fun toggleQr() {
@@ -320,9 +402,11 @@ class CameraViewModel @Inject constructor(
                     sourceBitmap = rawBitmap,
                     gpsData = currentState.gpsData,
                     isOnline = currentState.isEffectiveOnline,
-                    mapThumbnail = if (currentState.isEffectiveOnline) currentState.mapThumbnail else null,
+                    mapThumbnail = currentState.mapThumbnail,
                     showQr = currentState.showQr,
-                    useDms = currentState.useDms
+                    useDms = currentState.useDms,
+                    watermarkText = STAMP_BRAND,
+                    brandLogo = brandLogo
                 )
 
                 val saveResult = mediaStorageManager.saveStampedPhoto(stampedBitmap, currentState.gpsData)
@@ -331,7 +415,8 @@ class CameraViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isCapturing = false,
-                            lastCapturedUri = saveResult.getOrNull()
+                            lastCapturedUri = saveResult.getOrNull(),
+                            lastCapturedIsVideo = false
                         )
                     }
                 } else {
@@ -449,7 +534,7 @@ class CameraViewModel @Inject constructor(
                     outputVideoFile = outputVideoFile,
                     gpsData = currentState.gpsData,
                     isOnline = currentState.isEffectiveOnline,
-                    mapThumbnail = if (currentState.isEffectiveOnline) currentState.mapThumbnail else null,
+                    mapThumbnail = currentState.mapThumbnail,
                     showQr = currentState.showQr,
                     useDms = currentState.useDms,
                     samples = track
@@ -464,7 +549,8 @@ class CameraViewModel @Inject constructor(
                     _uiState.update {
                         it.copy(
                             isCapturing = false,
-                            lastCapturedUri = saveResult.getOrNull()
+                            lastCapturedUri = saveResult.getOrNull(),
+                            lastCapturedIsVideo = true
                         )
                     }
                 } else {
@@ -481,11 +567,17 @@ class CameraViewModel @Inject constructor(
                 _uiState.update {
                     it.copy(
                         isCapturing = false,
-                        lastCapturedUri = fallbackSave.getOrNull(),
+                        lastCapturedUri = fallbackSave.getOrNull() ?: it.lastCapturedUri,
+                        lastCapturedIsVideo = if (fallbackSave.isSuccess) true else it.lastCapturedIsVideo,
                         errorMessage = "Video saved (stamp note: ${e.message})"
                     )
                 }
             }
         }
+    }
+
+    companion object {
+        const val STAMP_BRAND = "GPS Map Camera"
+        private const val PREVIEW_STAMP_INTERVAL_MS = 1000L
     }
 }
