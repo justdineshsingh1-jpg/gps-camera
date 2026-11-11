@@ -21,6 +21,7 @@ import com.gpsmapcamera.app.core.location.LocationTracker
 import com.gpsmapcamera.app.core.overlay.MapTileManager
 import com.gpsmapcamera.app.core.overlay.MapTileType
 import com.gpsmapcamera.app.core.overlay.PhotoStampRenderer
+import com.gpsmapcamera.app.core.video.StampSample
 import com.gpsmapcamera.app.core.video.VideoStampTransformer
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
@@ -94,6 +95,26 @@ class CameraViewModel @Inject constructor(
     private var currentRecordingFile: File? = null
     private var timerJob: Job? = null
 
+    // GPS track captured during video recording, so the burned-in stamp moves with the person.
+    private val recordingTrack = mutableListOf<StampSample>()
+    private var recordedDurationUs = 0L
+
+    private fun captureTrackSample() {
+        val state = _uiState.value
+        if (!state.isRecording || state.isRecordingPaused) return
+        val gps = state.gpsData
+        if (gps.latitude == 0.0 && gps.longitude == 0.0) return
+        synchronized(recordingTrack) {
+            val last = recordingTrack.lastOrNull()
+            // Keep at most one sample per ~500 ms of video, replacing an older one at the same time.
+            if (last != null && recordedDurationUs - last.presentationTimeUs < 500_000L) {
+                recordingTrack[recordingTrack.size - 1] = last.copy(gpsData = gps, mapThumbnail = state.mapThumbnail)
+            } else {
+                recordingTrack.add(StampSample(recordedDurationUs, gps, if (state.isEffectiveOnline) state.mapThumbnail else null))
+            }
+        }
+    }
+
     init {
         // Collect live GPS & Compass coordinates (1s interval)
         viewModelScope.launch {
@@ -113,6 +134,7 @@ class CameraViewModel @Inject constructor(
                 )) }
 
                 checkAndTriggerGeocoding(gps.latitude, gps.longitude)
+                captureTrackSample()
             }
         }
 
@@ -156,6 +178,7 @@ class CameraViewModel @Inject constructor(
                 } else {
                     _uiState.update { it.copy(mapThumbnail = null) }
                 }
+                captureTrackSample()
             }
         }
     }
@@ -299,7 +322,8 @@ class CameraViewModel @Inject constructor(
                     isOnline = currentState.isEffectiveOnline,
                     mapThumbnail = if (currentState.isEffectiveOnline) currentState.mapThumbnail else null,
                     showQr = currentState.showQr,
-                    useDms = currentState.useDms
+                    useDms = currentState.useDms,
+                    samples = track
                 )
 
                 val saveResult = mediaStorageManager.saveStampedPhoto(stampedBitmap, currentState.gpsData)
@@ -348,6 +372,8 @@ class CameraViewModel @Inject constructor(
 
         val rawVideoFile = File(getApplication<Application>().cacheDir, "raw_video_${System.currentTimeMillis()}.mp4")
         currentRecordingFile = rawVideoFile
+        synchronized(recordingTrack) { recordingTrack.clear() }
+        recordedDurationUs = 0L
 
         _uiState.update {
             it.copy(
@@ -368,7 +394,11 @@ class CameraViewModel @Inject constructor(
             }
         }
 
+        captureTrackSample() // first stamp at 0:00
+
         cameraController.startVideoRecording(rawVideoFile, enableAudio = true) { event ->
+            // Recorded duration excludes pauses, so it matches the video's own timeline.
+            recordedDurationUs = event.recordingStats.recordedDurationNanos / 1000L
             when (event) {
                 is VideoRecordEvent.Finalize -> {
                     timerJob?.cancel()
@@ -408,6 +438,7 @@ class CameraViewModel @Inject constructor(
 
     private fun burnStampAndSaveVideo(rawFile: File) {
         val currentState = _uiState.value
+        val track = synchronized(recordingTrack) { recordingTrack.toList().also { recordingTrack.clear() } }
         _uiState.update { it.copy(isCapturing = true, isRecording = false) }
 
         viewModelScope.launch {
