@@ -11,6 +11,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.viewModelScope
 import com.gpsmapcamera.app.core.camera.CameraController
+import com.gpsmapcamera.app.core.camera.NightEnhancer
 import com.gpsmapcamera.app.core.connectivity.ConnectivityMode
 import com.gpsmapcamera.app.core.connectivity.NetworkObserver
 import com.gpsmapcamera.app.core.connectivity.NetworkStatus
@@ -404,7 +405,7 @@ class CameraViewModel @Inject constructor(
         cameraController.focusAndExposeOnPoint(x, y, width, height)
     }
 
-    fun capturePhoto() {
+    fun capturePhoto(fallbackBitmap: Bitmap? = null) {
         val currentState = _uiState.value
         if (currentState.isMockLocationDetected) {
             _uiState.update { it.copy(errorMessage = "Mock location detected. Real location required.") }
@@ -425,7 +426,10 @@ class CameraViewModel @Inject constructor(
                     delay(250) // Allow front sensor auto-exposure to adapt to bright screen
                 }
 
-                val rawBitmap = cameraController.capturePhoto()
+                var rawBitmap = cameraController.capturePhoto(fallbackBitmap)
+                if (currentState.isNightMode) {
+                    rawBitmap = NightEnhancer.enhanceLowLight(rawBitmap)
+                }
 
                 val stampedBitmap = PhotoStampRenderer.createStampedBitmap(
                     sourceBitmap = rawBitmap,

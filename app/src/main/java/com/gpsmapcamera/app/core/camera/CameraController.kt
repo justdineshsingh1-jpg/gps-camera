@@ -92,7 +92,6 @@ class CameraController @Inject constructor(
         }, ContextCompat.getMainExecutor(context))
     }
 
-    @OptIn(ExperimentalCamera2Interop::class)
     fun bindCameraUseCases(
         lifecycleOwner: LifecycleOwner,
         previewView: PreviewView
@@ -100,52 +99,16 @@ class CameraController @Inject constructor(
         val provider = cameraProvider ?: return
         val baseSelector = CameraSelector.Builder().requireLensFacing(lensFacing).build()
 
-        // 1. Configure Preview with Face Priority & Auto Exposure
+        // 1. Configure standard Preview
         val previewBuilder = Preview.Builder()
-        try {
-            val camera2Preview = Camera2Interop.Extender(previewBuilder)
-            camera2Preview.setCaptureRequestOption(
-                CaptureRequest.CONTROL_MODE,
-                CameraMetadata.CONTROL_MODE_USE_SCENE_MODE
-            )
-            camera2Preview.setCaptureRequestOption(
-                CaptureRequest.CONTROL_SCENE_MODE,
-                CameraMetadata.CONTROL_SCENE_MODE_FACE_PRIORITY
-            )
-            camera2Preview.setCaptureRequestOption(
-                CaptureRequest.STATISTICS_FACE_DETECT_MODE,
-                CameraMetadata.STATISTICS_FACE_DETECT_MODE_SIMPLE
-            )
-        } catch (e: Exception) {
-            // Graceful fallback for non-Camera2 compliant HALs
-        }
-
         preview = previewBuilder.build().also {
             it.setSurfaceProvider(previewView.surfaceProvider)
         }
 
-        // 2. Configure ImageCapture with Face Priority, High Quality & Flash Mode
+        // 2. Configure standard ImageCapture (High Quality & Flash Mode)
         val imageCaptureBuilder = ImageCapture.Builder()
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
             .setFlashMode(flashMode)
-
-        try {
-            val camera2Capture = Camera2Interop.Extender(imageCaptureBuilder)
-            camera2Capture.setCaptureRequestOption(
-                CaptureRequest.CONTROL_MODE,
-                CameraMetadata.CONTROL_MODE_USE_SCENE_MODE
-            )
-            camera2Capture.setCaptureRequestOption(
-                CaptureRequest.CONTROL_SCENE_MODE,
-                CameraMetadata.CONTROL_SCENE_MODE_FACE_PRIORITY
-            )
-            camera2Capture.setCaptureRequestOption(
-                CaptureRequest.STATISTICS_FACE_DETECT_MODE,
-                CameraMetadata.STATISTICS_FACE_DETECT_MODE_SIMPLE
-            )
-        } catch (e: Exception) {
-            // Fallback
-        }
 
         imageCapture = imageCaptureBuilder.build()
 
@@ -157,7 +120,6 @@ class CameraController @Inject constructor(
 
         // 4. Bind camera use cases with standard baseSelector
         // VideoCapture and ImageCapture together are fully supported on baseSelector.
-        // Night mode low-light sensitivity is applied dynamically via hardware exposure boost without closing the camera.
         try {
             provider.unbindAll()
             camera = provider.bindToLifecycle(
@@ -167,7 +129,6 @@ class CameraController @Inject constructor(
                 imageCapture,
                 videoCapture
             )
-            applyNightModeSettings()
         } catch (e: Exception) {
             // Fallback for limited hardware devices that do not support 3 concurrent streams: bind preview + imageCapture
             try {
@@ -178,7 +139,6 @@ class CameraController @Inject constructor(
                     preview,
                     imageCapture
                 )
-                applyNightModeSettings()
             } catch (fallbackEx: Exception) {
                 fallbackEx.printStackTrace()
             }
@@ -205,24 +165,6 @@ class CameraController @Inject constructor(
 
     fun setNightMode(enable: Boolean, lifecycleOwner: LifecycleOwner? = null, previewView: PreviewView? = null) {
         isNightMode = enable
-        applyNightModeSettings()
-    }
-
-    private fun applyNightModeSettings() {
-        try {
-            val cam = camera ?: return
-            val range = cam.cameraInfo.exposureState.exposureCompensationRange
-            if (isNightMode) {
-                // Boost exposure compensation to gather maximum light in dark/night conditions (+2 to +3 EV)
-                val targetEv = range.upper.coerceAtMost(3).coerceAtLeast(1)
-                cam.cameraControl.setExposureCompensationIndex(targetEv)
-            } else {
-                // Reset exposure compensation back to neutral
-                cam.cameraControl.setExposureCompensationIndex(0)
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
     }
 
     fun setLinearZoom(zoom: Float) {
@@ -254,16 +196,29 @@ class CameraController @Inject constructor(
     }
 
     fun setExposureCompensation(index: Int) {
-        camera?.cameraControl?.setExposureCompensationIndex(index)
+        try {
+            val cam = camera ?: return
+            val state = cam.cameraInfo.exposureState
+            if (!state.isExposureCompensationSupported) return
+            val range = state.exposureCompensationRange
+            val safeIndex = index.coerceIn(range.lower, range.upper)
+            cam.cameraControl.setExposureCompensationIndex(safeIndex)
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     fun getExposureCompensationRange(): Range<Int>? {
         return camera?.cameraInfo?.exposureState?.exposureCompensationRange
     }
 
-    suspend fun capturePhoto(): Bitmap = suspendCancellableCoroutine { continuation ->
+    suspend fun capturePhoto(fallbackBitmap: Bitmap? = null): Bitmap = suspendCancellableCoroutine { continuation ->
         val capture = imageCapture ?: run {
-            continuation.resumeWithException(IllegalStateException("ImageCapture not bound"))
+            if (fallbackBitmap != null) {
+                continuation.resume(fallbackBitmap)
+            } else {
+                continuation.resumeWithException(IllegalStateException("ImageCapture not bound"))
+            }
             return@suspendCancellableCoroutine
         }
 
@@ -302,13 +257,21 @@ class CameraController @Inject constructor(
                         continuation.resume(bitmap)
                     } catch (e: Exception) {
                         image.close()
-                        continuation.resumeWithException(e)
+                        if (fallbackBitmap != null) {
+                            continuation.resume(fallbackBitmap)
+                        } else {
+                            continuation.resumeWithException(e)
+                        }
                     }
                 }
 
                 override fun onError(exception: ImageCaptureException) {
                     restoreVolume()
-                    continuation.resumeWithException(exception)
+                    if (fallbackBitmap != null) {
+                        continuation.resume(fallbackBitmap)
+                    } else {
+                        continuation.resumeWithException(exception)
+                    }
                 }
             }
         )

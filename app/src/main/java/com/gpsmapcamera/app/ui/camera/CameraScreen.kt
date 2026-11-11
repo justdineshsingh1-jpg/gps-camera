@@ -464,8 +464,11 @@ fun CameraScreen(
                         isRecording = uiState.isRecording,
                         isCapturing = uiState.isCapturing,
                         onClick = {
-                            if (uiState.cameraMode == CameraMode.PHOTO) viewModel.capturePhoto()
-                            else viewModel.toggleVideoRecording()
+                            if (uiState.cameraMode == CameraMode.PHOTO) {
+                                viewModel.capturePhoto(previewView?.bitmap)
+                            } else {
+                                viewModel.toggleVideoRecording()
+                            }
                         }
                     )
 
