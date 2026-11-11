@@ -83,4 +83,45 @@ class GpsAppUnitTests {
         assertTrue("Must resolve Arunachal Pradesh mountain offline", tawangMountain != null)
         assertEquals("Arunachal Pradesh", tawangMountain?.state)
     }
+
+    @Test
+    fun testDeleteConfirmationText_AllPaths() {
+        val ui = com.gpsmapcamera.app.ui.gallery.DeleteConfirmationText
+        assertEquals("Delete this photo?", ui.title(1, 0))
+        assertEquals("Delete this video?", ui.title(0, 1))
+        assertEquals("Delete 3 photos?", ui.title(3, 0))
+        assertEquals("Delete 2 videos?", ui.title(0, 2))
+        assertEquals("Delete 4 items?", ui.title(3, 1))
+        assertEquals("This can't be undone.", ui.BODY)
+    }
+
+    @Test
+    fun testZoomMath_ClampAndDoubleTap() {
+        val z = com.gpsmapcamera.app.ui.gallery.ZoomMath
+        assertEquals(1f, z.clampScale(0.3f), 0.0001f)
+        assertEquals(5f, z.clampScale(9f), 0.0001f)
+        // At 1x there is no room to pan
+        assertEquals(0f, z.clampOffset(120f, 1000f, 1f), 0.0001f)
+        // At 2x a 1000px viewport can move 500px each way
+        assertEquals(500f, z.maxOffset(1000f, 2f), 0.0001f)
+        assertEquals(-500f, z.clampOffset(-900f, 1000f, 2f), 0.0001f)
+        // Double-tap on the centre keeps it centred; on the left edge shifts content right
+        assertEquals(0f, z.offsetForTap(500f, 1000f, 2.5f), 0.0001f)
+        assertTrue(z.offsetForTap(0f, 1000f, 2.5f) > 0f)
+    }
+
+    @Test
+    fun testStampPreviewKey_IgnoresSensorNoiseButTracksVisibleChanges() {
+        val base = com.gpsmapcamera.app.core.location.GpsData(
+            latitude = 26.149622, longitude = 91.880735, timestamp = 1794290880000L,
+            addressLine = "Narengi Tinali, Guwahati", city = "Guwahati", state = "Assam", country = "India"
+        )
+        val noisy = base.copy(accuracyMeters = 3.1f, compassDegrees = 120f, speedMps = 0.4f, timestamp = base.timestamp + 20_000L)
+        val sp = com.gpsmapcamera.app.core.overlay.StampPreview
+        assertEquals(sp.displayData(base), sp.displayData(noisy))
+        val nextMinute = base.copy(timestamp = base.timestamp + 60_000L)
+        assertTrue(sp.displayData(base) != sp.displayData(nextMinute))
+        val moved = base.copy(addressLine = "Kalitakuchi, Guwahati")
+        assertTrue(sp.displayData(base) != sp.displayData(moved))
+    }
 }

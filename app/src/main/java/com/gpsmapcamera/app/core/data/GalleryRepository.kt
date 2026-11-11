@@ -1,7 +1,9 @@
 package com.gpsmapcamera.app.core.data
 
+import android.app.RecoverableSecurityException
 import android.content.ContentUris
 import android.content.Context
+import android.content.IntentSender
 import android.net.Uri
 import android.os.Build
 import android.provider.MediaStore
@@ -10,6 +12,16 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
 import javax.inject.Singleton
+
+/**
+ * Outcome of deleting media. [consentRequest] is set on Android 11+ when some items are not owned by
+ * this install (e.g. after a reinstall): launching it shows the system's own delete consent for them.
+ */
+data class DeleteOutcome(
+    val deletedCount: Int,
+    val pendingUris: List<Uri> = emptyList(),
+    val consentRequest: IntentSender? = null
+)
 
 data class MediaFileItem(
     val id: Long,
@@ -102,11 +114,36 @@ class GalleryRepository @Inject constructor(
         items.sortedByDescending { it.dateTaken }
     }
 
-    suspend fun deleteMedia(uri: Uri): Boolean = withContext(Dispatchers.IO) {
-        try {
-            context.contentResolver.delete(uri, null, null) > 0
-        } catch (e: Exception) {
-            false
+    /** Newest photo or video saved by the app (for the camera's gallery thumbnail), or null. */
+    suspend fun getLatestMedia(): MediaFileItem? = getCapturedMedia().firstOrNull()
+
+    /**
+     * Deletes media. Callers must have shown the user a confirmation first
+     * (see ui/gallery/DeleteConfirmation) — every delete path in the app goes through it.
+     */
+    suspend fun deleteMedia(uri: Uri): Boolean = deleteMedia(listOf(uri)).deletedCount > 0
+
+    suspend fun deleteMedia(uris: List<Uri>): DeleteOutcome = withContext(Dispatchers.IO) {
+        var deleted = 0
+        val needConsent = mutableListOf<Uri>()
+        for (uri in uris) {
+            try {
+                if (context.contentResolver.delete(uri, null, null) > 0) deleted++
+            } catch (e: SecurityException) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && e is RecoverableSecurityException) {
+                    needConsent.add(uri)
+                }
+            } catch (e: Exception) {
+                // Skip items that vanished or cannot be deleted
+            }
         }
+        val request = if (needConsent.isNotEmpty() && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            try {
+                MediaStore.createDeleteRequest(context.contentResolver, needConsent).intentSender
+            } catch (e: Exception) {
+                null
+            }
+        } else null
+        DeleteOutcome(deleted, needConsent, request)
     }
 }
