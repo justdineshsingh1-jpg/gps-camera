@@ -14,8 +14,8 @@ android {
         applicationId = "com.gpsmapcamera.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 15
-        versionName = "1.1.5"
+        versionCode = 16
+        versionName = "1.1.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -100,6 +100,7 @@ dependencies {
 
     // Image loading (Map thumbnail)
     implementation(libs.coil.compose)
+    implementation(libs.coil.video) // video frame thumbnails (gallery button & grid)
 
     // Coroutines & Utilities
     implementation(libs.kotlinx.coroutines.android)
