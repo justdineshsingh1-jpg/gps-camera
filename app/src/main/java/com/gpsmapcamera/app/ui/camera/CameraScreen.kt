@@ -3,6 +3,7 @@ package com.gpsmapcamera.app.ui.camera
 import android.app.Activity
 import android.content.Intent
 import android.provider.Settings
+import android.widget.Toast
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -45,11 +46,15 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material.icons.rounded.Satellite
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import com.gpsmapcamera.app.core.update.UpdateState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -511,6 +516,45 @@ fun CameraScreen(
                 }
             )
         }
+
+        // Over-The-Air (OTA) In-App Auto-Updater Dialogs
+        when (val update = uiState.updateState) {
+            is UpdateState.UpdateAvailable -> {
+                AppUpdateAvailableDialog(
+                    version = update.latestVersion,
+                    apkSize = update.apkSize,
+                    onUpdate = { viewModel.startAppUpdate(update.downloadUrl) },
+                    onDismiss = { viewModel.dismissAppUpdate() }
+                )
+            }
+            is UpdateState.Downloading -> {
+                AppUpdateDownloadingDialog(
+                    progress = update.progressPercent,
+                    downloadedBytes = update.downloadedBytes,
+                    totalBytes = update.totalBytes
+                )
+            }
+            is UpdateState.PermissionNeeded -> {
+                AppUpdatePermissionDialog(
+                    onGrant = { viewModel.requestInstallPermission() },
+                    onRetryInstall = { viewModel.retryInstallApk(update.apkFile) },
+                    onDismiss = { viewModel.dismissAppUpdate() }
+                )
+            }
+            is UpdateState.NoUpdateAvailable -> {
+                LaunchedEffect(Unit) {
+                    Toast.makeText(context, "GPS Map Camera is up to date!", Toast.LENGTH_SHORT).show()
+                    viewModel.dismissAppUpdate()
+                }
+            }
+            is UpdateState.Error -> {
+                LaunchedEffect(update.message) {
+                    Toast.makeText(context, update.message, Toast.LENGTH_LONG).show()
+                    viewModel.dismissAppUpdate()
+                }
+            }
+            else -> {}
+        }
     }
 }
 
@@ -569,6 +613,212 @@ private fun MockLocationDialog(
                         Text(
                             text = "GO TO SETTINGS",
                             color = Color(0xFF90CAF9),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppUpdateAvailableDialog(
+    version: String,
+    apkSize: Long,
+    onUpdate: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = false)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFF151D2A),
+            tonalElevation = 8.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text(
+                    text = "Update Available",
+                    color = Color.White,
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                val sizeText = if (apkSize > 0) " (${String.format(java.util.Locale.US, "%.1f MB", apkSize / (1024f * 1024f))})" else ""
+                Text(
+                    text = "A new version of GPS Map Camera (v$version)$sizeText is available over-the-air with the latest fixes and improvements.\n\nWould you like to download and update now?",
+                    color = Color(0xFFCDD5E0),
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(
+                            text = "LATER",
+                            color = Color(0xFF9E9E9E),
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 13.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = onUpdate,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+                    ) {
+                        Text(
+                            text = "UPDATE NOW",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppUpdateDownloadingDialog(
+    progress: Int,
+    downloadedBytes: Long,
+    totalBytes: Long
+) {
+    Dialog(
+        onDismissRequest = {},
+        properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFF151D2A),
+            tonalElevation = 8.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text(
+                    text = "Downloading Update...",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                LinearProgressIndicator(
+                    progress = { (progress / 100f).coerceIn(0f, 1f) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp),
+                    color = Color(0xFF3B82F6),
+                    trackColor = Color(0xFF1E293B)
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                val downloadedMb = String.format(java.util.Locale.US, "%.1f", downloadedBytes / (1024f * 1024f))
+                val totalMb = if (totalBytes > 0) String.format(java.util.Locale.US, "%.1f", totalBytes / (1024f * 1024f)) else "--"
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "$progress%",
+                        color = Color(0xFF60A5FA),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp
+                    )
+                    Text(
+                        text = "$downloadedMb MB / $totalMb MB",
+                        color = Color(0xFF94A3B8),
+                        fontSize = 12.sp
+                    )
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "Please keep the app open. The installer will prompt automatically once finished.",
+                    color = Color(0xFF94A3B8),
+                    fontSize = 12.sp,
+                    lineHeight = 16.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun AppUpdatePermissionDialog(
+    onGrant: () -> Unit,
+    onRetryInstall: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(dismissOnBackPress = true, dismissOnClickOutside = false)
+    ) {
+        Surface(
+            shape = RoundedCornerShape(16.dp),
+            color = Color(0xFF151D2A),
+            tonalElevation = 8.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
+        ) {
+            Column(modifier = Modifier.padding(24.dp)) {
+                Text(
+                    text = "Permission Required",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(
+                    text = "To install updates over-the-air, Android requires you to enable 'Allow from this source' for GPS Map Camera.\n\n1. Tap 'Settings' below.\n2. Turn on the switch.\n3. Return here and tap 'Install Now'.",
+                    color = Color(0xFFCDD5E0),
+                    fontSize = 14.sp,
+                    lineHeight = 20.sp
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onDismiss) {
+                        Text(
+                            text = "CANCEL",
+                            color = Color(0xFF9E9E9E),
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 13.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    TextButton(onClick = onGrant) {
+                        Text(
+                            text = "SETTINGS",
+                            color = Color(0xFF60A5FA),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Button(
+                        onClick = onRetryInstall,
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB))
+                    ) {
+                        Text(
+                            text = "INSTALL NOW",
+                            color = Color.White,
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )

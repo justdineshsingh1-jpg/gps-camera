@@ -24,6 +24,8 @@ import com.gpsmapcamera.app.core.overlay.MapTileManager
 import com.gpsmapcamera.app.core.overlay.MapTileType
 import com.gpsmapcamera.app.core.overlay.PhotoStampRenderer
 import com.gpsmapcamera.app.core.overlay.StampPreview
+import com.gpsmapcamera.app.core.update.AppUpdateManager
+import com.gpsmapcamera.app.core.update.UpdateState
 import com.gpsmapcamera.app.core.video.StampSample
 import com.gpsmapcamera.app.core.video.VideoStampTransformer
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -76,6 +78,7 @@ data class CameraUiState(
     val isScreenFlashing: Boolean = false,
     val exposureCompensation: Int = 0,
     val isMockLocationDetected: Boolean = false,
+    val updateState: UpdateState = UpdateState.Idle,
     val errorMessage: String? = null
 ) {
     val isTorchOn: Boolean
@@ -95,7 +98,8 @@ class CameraViewModel @Inject constructor(
     private val mapTileManager: MapTileManager,
     private val mediaStorageManager: MediaStorageManager,
     private val videoStampTransformer: VideoStampTransformer,
-    private val galleryRepository: GalleryRepository
+    private val galleryRepository: GalleryRepository,
+    private val appUpdateManager: AppUpdateManager
 ) : AndroidViewModel(application) {
 
     private val brandLogo: Bitmap? by lazy { BrandLogo.bitmap(application) }
@@ -226,6 +230,19 @@ class CameraViewModel @Inject constructor(
                     checkAndTriggerGeocoding(current.gpsData.latitude, current.gpsData.longitude, force = true)
                 }
             }
+        }
+
+        // Collect In-App OTA Update state
+        viewModelScope.launch {
+            appUpdateManager.updateState.collect { update ->
+                _uiState.update { it.copy(updateState = update) }
+            }
+        }
+
+        // Check for updates silently on app launch
+        viewModelScope.launch {
+            delay(2000)
+            appUpdateManager.checkForUpdates(silent = true)
         }
     }
 
@@ -590,6 +607,31 @@ class CameraViewModel @Inject constructor(
                     )
                 }
             }
+        }
+    }
+
+    // ---- In-App OTA Update controls ---------------------------------------------------------
+    fun startAppUpdate(downloadUrl: String) {
+        viewModelScope.launch {
+            appUpdateManager.startDownload(downloadUrl)
+        }
+    }
+
+    fun dismissAppUpdate() {
+        appUpdateManager.dismiss()
+    }
+
+    fun retryInstallApk(file: File) {
+        appUpdateManager.installApk(file)
+    }
+
+    fun requestInstallPermission() {
+        appUpdateManager.requestInstallPermission()
+    }
+
+    fun checkForUpdatesManual() {
+        viewModelScope.launch {
+            appUpdateManager.checkForUpdates(silent = false)
         }
     }
 
