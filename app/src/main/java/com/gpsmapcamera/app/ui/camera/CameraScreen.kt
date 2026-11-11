@@ -3,6 +3,7 @@ package com.gpsmapcamera.app.ui.camera
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -27,20 +28,20 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.Image
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Cameraswitch
-import androidx.compose.material.icons.filled.FlashAuto
-import androidx.compose.material.icons.filled.FlashOff
-import androidx.compose.material.icons.filled.FlashOn
-import androidx.compose.material.icons.filled.Highlight
-import androidx.compose.material.icons.filled.NightsStay
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.QrCode
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.rounded.Cameraswitch
+import androidx.compose.material.icons.rounded.Exposure
+import androidx.compose.material.icons.rounded.FlashAuto
+import androidx.compose.material.icons.rounded.FlashOff
+import androidx.compose.material.icons.rounded.FlashOn
+import androidx.compose.material.icons.rounded.FlashlightOn
+import androidx.compose.material.icons.rounded.Map
+import androidx.compose.material.icons.rounded.NightsStay
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.QrCode2
+import androidx.compose.material.icons.rounded.Satellite
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -56,7 +57,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -67,7 +72,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.gpsmapcamera.app.core.overlay.MapTileType
-import com.gpsmapcamera.app.ui.components.LiveStampOverlay
 import com.gpsmapcamera.app.ui.components.StatusIndicators
 import kotlinx.coroutines.delay
 import java.util.Locale
@@ -80,6 +84,7 @@ fun CameraScreen(
     modifier: Modifier = Modifier
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val previewStamp by viewModel.previewStamp.collectAsState()
     val lifecycleOwner = LocalLifecycleOwner.current
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -97,6 +102,18 @@ fun CameraScreen(
             focusPoint = null
         }
     }
+
+    // Newest saved photo/video for the round gallery thumbnail (app start and back from Gallery)
+    LaunchedEffect(Unit) {
+        viewModel.refreshLastMedia()
+    }
+
+    var switchTurns by remember { mutableFloatStateOf(0f) }
+    val switchRotation by animateFloatAsState(
+        targetValue = switchTurns * 180f,
+        animationSpec = tween(350),
+        label = "switchCameraRotation"
+    )
 
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { error ->
@@ -223,319 +240,236 @@ fun CameraScreen(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Night Mode Toggle (🌙)
-                IconButton(
-                    onClick = {
-                        previewView?.let { viewModel.toggleNightMode(lifecycleOwner, it) }
-                    },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(if (uiState.isNightMode) Color(0xFF1E88E5) else Color(0x80000000))
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.NightsStay,
-                        contentDescription = "Night Mode",
-                        tint = if (uiState.isNightMode) Color(0xFFFFD54F) else Color.White
-                    )
-                }
+                // Night Mode Toggle
+                ControlChip(
+                    icon = Icons.Rounded.NightsStay,
+                    contentDescription = "Night Mode",
+                    tint = if (uiState.isNightMode) CameraColors.Moon else Color(0xFFC7D2FE),
+                    active = uiState.isNightMode,
+                    activeBrush = Brush.linearGradient(listOf(CameraColors.Indigo, Color(0xFF7C3AED))),
+                    onClick = { previewView?.let { viewModel.toggleNightMode(lifecycleOwner, it) } }
+                )
 
                 Spacer(modifier = Modifier.size(8.dp))
 
                 // Flash Mode cycle (Auto / On / Torch / Off)
                 val (flashIcon, flashTint) = when (uiState.flashMode) {
-                    AppFlashMode.AUTO -> Icons.Default.FlashAuto to Color(0xFF00E676)
-                    AppFlashMode.ON -> Icons.Default.FlashOn to Color(0xFFFFD54F)
-                    AppFlashMode.TORCH -> Icons.Default.Highlight to Color(0xFFFF9100)
-                    AppFlashMode.OFF -> Icons.Default.FlashOff to Color.White
+                    AppFlashMode.AUTO -> Icons.Rounded.FlashAuto to CameraColors.Amber
+                    AppFlashMode.ON -> Icons.Rounded.FlashOn to Color(0xFFFFEB3B)
+                    AppFlashMode.TORCH -> Icons.Rounded.FlashlightOn to CameraColors.Orange
+                    AppFlashMode.OFF -> Icons.Rounded.FlashOff to Color.White
                 }
-
-                IconButton(
-                    onClick = { viewModel.cycleFlashMode() },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color(0x80000000))
-                ) {
-                    Icon(
-                        imageVector = flashIcon,
-                        contentDescription = "Flash Mode",
-                        tint = flashTint
-                    )
-                }
+                ControlChip(
+                    icon = flashIcon,
+                    contentDescription = "Flash: ${uiState.flashMode.name.lowercase()}",
+                    tint = flashTint,
+                    onClick = { viewModel.cycleFlashMode() }
+                )
 
                 Spacer(modifier = Modifier.size(8.dp))
 
-                // Exposure Compensation Pill (+1EV, +2EV, -1EV, 0)
-                Box(
-                    modifier = Modifier
-                        .height(36.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(if (uiState.exposureCompensation != 0) Color(0xFF1E88E5) else Color(0x80000000))
-                        .clickable {
-                            val next = when (uiState.exposureCompensation) {
-                                0 -> 1
-                                1 -> 2
-                                2 -> -1
-                                else -> 0
-                            }
-                            viewModel.adjustExposure(next - uiState.exposureCompensation)
+                // Exposure Compensation (+1EV, +2EV, -1EV, 0)
+                ControlPill(
+                    icon = Icons.Rounded.Exposure,
+                    label = when {
+                        uiState.exposureCompensation > 0 -> "+${uiState.exposureCompensation}"
+                        uiState.exposureCompensation < 0 -> "${uiState.exposureCompensation}"
+                        else -> "EV"
+                    },
+                    tint = Color.White,
+                    active = uiState.exposureCompensation != 0,
+                    activeColor = Color(0xFF0EA5E9),
+                    onClick = {
+                        val next = when (uiState.exposureCompensation) {
+                            0 -> 1
+                            1 -> 2
+                            2 -> -1
+                            else -> 0
                         }
-                        .padding(horizontal = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = when {
-                            uiState.exposureCompensation > 0 -> "+${uiState.exposureCompensation}EV"
-                            uiState.exposureCompensation < 0 -> "${uiState.exposureCompensation}EV"
-                            else -> "EV"
-                        },
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                        viewModel.adjustExposure(next - uiState.exposureCompensation)
+                    }
+                )
 
                 Spacer(modifier = Modifier.size(8.dp))
 
                 // QR Code toggle
-                IconButton(
-                    onClick = { viewModel.toggleQr() },
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(Color(0x80000000))
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.QrCode,
-                        contentDescription = "Toggle QR",
-                        tint = if (uiState.showQr) Color(0xFF00E676) else Color.Gray
-                    )
-                }
+                ControlChip(
+                    icon = Icons.Rounded.QrCode2,
+                    contentDescription = if (uiState.showQr) "Hide QR" else "Show QR",
+                    tint = if (uiState.showQr) CameraColors.Emerald else Color(0xFF9CA3AF),
+                    onClick = { viewModel.toggleQr() }
+                )
 
                 Spacer(modifier = Modifier.size(8.dp))
 
-                // Map Type Pill (STREET / SATELLITE)
-                Box(
-                    modifier = Modifier
-                        .height(36.dp)
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(Color(0x80000000))
-                        .clickable { viewModel.cycleMapTileType() }
-                        .padding(horizontal = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = when (uiState.mapTileType) {
-                            MapTileType.GOOGLE_STREET -> "STREET"
-                            MapTileType.GOOGLE_HYBRID -> "SATELLITE"
-                        },
-                        color = Color(0xFF38BDF8),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+                // Map Type (STREET / SATELLITE)
+                ControlPill(
+                    icon = when (uiState.mapTileType) {
+                        MapTileType.GOOGLE_STREET -> Icons.Rounded.Map
+                        MapTileType.GOOGLE_HYBRID -> Icons.Rounded.Satellite
+                    },
+                    label = when (uiState.mapTileType) {
+                        MapTileType.GOOGLE_STREET -> "STREET"
+                        MapTileType.GOOGLE_HYBRID -> "SATELLITE"
+                    },
+                    tint = when (uiState.mapTileType) {
+                        MapTileType.GOOGLE_STREET -> CameraColors.Sky
+                        MapTileType.GOOGLE_HYBRID -> CameraColors.Emerald
+                    },
+                    onClick = { viewModel.cycleMapTileType() }
+                )
             }
         }
 
-        // 5. Bottom Layer: Live Stamp Overlay + 1x/2x/3x Zoom + Mode Tabs + Shutter Controls
+        // 5. Bottom Layer: Live Stamp (WYSIWYG) + 1x/2x/3x Zoom + Mode Tabs + Shutter Controls
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(horizontal = 14.dp, vertical = 8.dp)
+                .padding(vertical = 8.dp)
         ) {
-            // WYSIWYG Stamp Overlay Card (Reflows automatically in offline mode!)
-            LiveStampOverlay(
-                gpsData = uiState.gpsData,
-                isOnline = uiState.isEffectiveOnline,
-                mapThumbnail = uiState.mapThumbnail,
-                showQr = uiState.showQr,
-                useDms = uiState.useDms,
-                watermarkText = "GPS MAP CAMERA"
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // 1x, 2x, 3x Quick Zoom Pill
-            Row(
+            // Live stamp: the exact bitmap PhotoStampRenderer burns into the photo, drawn at the
+            // preview's full width, so preview and saved stamp match in layout, size and elements.
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 6.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
+                    .onSizeChanged { viewModel.setPreviewStampWidth(it.width) }
             ) {
+                previewStamp?.let { stamp ->
+                    val image = remember(stamp) { stamp.asImageBitmap() }
+                    Image(
+                        bitmap = image,
+                        contentDescription = "Live GPS stamp preview",
+                        contentScale = ContentScale.FillWidth,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
+            Column(modifier = Modifier.padding(horizontal = 14.dp)) {
+                // 1x, 2x, 3x Quick Zoom Pill
                 Row(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Color(0x99000000))
-                        .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(20.dp))
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        .fillMaxWidth()
+                        .padding(bottom = 6.dp),
+                    horizontalArrangement = Arrangement.Center,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    listOf(1.0f to "1x", 2.0f to "2x", 3.0f to "3x").forEach { (ratio, label) ->
-                        val isSelected = kotlin.math.abs(uiState.currentZoomRatio - ratio) < 0.25f
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(CircleShape)
-                                .background(if (isSelected) Color(0xFFFFD54F) else Color.Transparent)
-                                .clickable { viewModel.setZoomRatio(ratio) },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = label,
-                                color = if (isSelected) Color.Black else Color.White,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold
-                            )
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Color(0x99000000))
+                            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        listOf(1.0f to "1x", 2.0f to "2x", 3.0f to "3x").forEach { (ratio, label) ->
+                            val isSelected = kotlin.math.abs(uiState.currentZoomRatio - ratio) < 0.25f
+                            Box(
+                                modifier = Modifier
+                                    .size(32.dp)
+                                    .clip(CircleShape)
+                                    .background(if (isSelected) Color(0xFFFFD54F) else Color.Transparent)
+                                    .clickable { viewModel.setZoomRatio(ratio) },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = label,
+                                    color = if (isSelected) Color.Black else Color.White,
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(6.dp))
 
-            // Photo / Video Mode Selector Tabs
-            if (!uiState.isRecording) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    Text(
-                        text = "PHOTO",
-                        color = if (uiState.cameraMode == CameraMode.PHOTO) Color(0xFFFFCC00) else Color(0x99FFFFFF),
-                        fontWeight = if (uiState.cameraMode == CameraMode.PHOTO) FontWeight.Bold else FontWeight.Normal,
-                        fontSize = 13.sp,
-                        modifier = Modifier
-                            .clickable { viewModel.setCameraMode(CameraMode.PHOTO) }
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                    Text(
-                        text = "VIDEO",
-                        color = if (uiState.cameraMode == CameraMode.VIDEO) Color(0xFFFFCC00) else Color(0x99FFFFFF),
-                        fontWeight = if (uiState.cameraMode == CameraMode.VIDEO) FontWeight.Bold else FontWeight.Normal,
-                        fontSize = 13.sp,
-                        modifier = Modifier
-                            .clickable { viewModel.setCameraMode(CameraMode.VIDEO) }
-                            .padding(horizontal = 16.dp, vertical = 4.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Action Buttons Row (Shutter, Pause/Resume, Switch Camera)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Left slot: Pause/Resume if recording, else gallery indicator
-                if (uiState.isRecording) {
-                    IconButton(
-                        onClick = {
-                            viewModel.pauseResumeVideoRecording()
-                        },
-                        modifier = Modifier
-                            .size(54.dp)
-                            .clip(CircleShape)
-                            .background(Color(0x66000000))
+                // Photo / Video Mode Selector Tabs
+                if (!uiState.isRecording) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
                     ) {
-                        Icon(
-                            imageVector = if (uiState.isRecordingPaused) Icons.Default.PlayArrow else Icons.Default.Pause,
-                            contentDescription = "Pause/Resume",
-                            tint = Color.White,
-                            modifier = Modifier.size(28.dp)
+                        Text(
+                            text = "PHOTO",
+                            color = if (uiState.cameraMode == CameraMode.PHOTO) Color(0xFFFFCC00) else Color(0x99FFFFFF),
+                            fontWeight = if (uiState.cameraMode == CameraMode.PHOTO) FontWeight.Bold else FontWeight.Normal,
+                            fontSize = 13.sp,
+                            modifier = Modifier
+                                .clickable { viewModel.setCameraMode(CameraMode.PHOTO) }
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
+                        )
+                        Text(
+                            text = "VIDEO",
+                            color = if (uiState.cameraMode == CameraMode.VIDEO) Color(0xFFFFCC00) else Color(0x99FFFFFF),
+                            fontWeight = if (uiState.cameraMode == CameraMode.VIDEO) FontWeight.Bold else FontWeight.Normal,
+                            fontSize = 13.sp,
+                            modifier = Modifier
+                                .clickable { viewModel.setCameraMode(CameraMode.VIDEO) }
+                                .padding(horizontal = 16.dp, vertical = 4.dp)
                         )
                     }
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .size(54.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(Color(0x66000000))
-                            .border(1.dp, Color(0x33FFFFFF), RoundedCornerShape(12.dp))
-                            .clickable { onOpenGallery() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (uiState.lastCapturedUri != null) {
-                            Text("Saved", color = Color(0xFF00E676), fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                        } else {
-                            Text("Gallery", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.SemiBold)
-                        }
-                    }
                 }
 
-                // Shutter Button
-                if (uiState.cameraMode == CameraMode.PHOTO) {
-                    Box(
-                        modifier = Modifier
-                            .size(76.dp)
-                            .clip(CircleShape)
-                            .border(4.dp, Color.White, CircleShape)
-                            .padding(6.dp)
-                            .clip(CircleShape)
-                            .background(if (uiState.isCapturing) Color.Gray else Color.White)
-                            .clickable(enabled = !uiState.isCapturing) {
-                                viewModel.capturePhoto()
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (uiState.isCapturing) {
-                            CircularProgressIndicator(
-                                color = Color(0xFF1E88E5),
-                                strokeWidth = 3.dp,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
-                    }
-                } else {
-                    // Video Shutter Button (Red with Pause/Stop morphing)
-                    Box(
-                        modifier = Modifier
-                            .size(76.dp)
-                            .clip(CircleShape)
-                            .border(4.dp, Color.White, CircleShape)
-                            .padding(6.dp)
-                            .clip(if (uiState.isRecording) RoundedCornerShape(12.dp) else CircleShape)
-                            .background(Color(0xFFE53935))
-                            .clickable {
-                                viewModel.toggleVideoRecording()
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (uiState.isRecording) {
-                            Icon(
-                                imageVector = Icons.Default.Stop,
-                                contentDescription = "Stop Recording",
-                                tint = Color.White,
-                                modifier = Modifier.size(32.dp)
-                            )
-                        }
-                    }
-                }
+                Spacer(modifier = Modifier.height(10.dp))
 
-                // Switch Camera Button
-                IconButton(
-                    onClick = {
-                        previewView?.let { viewModel.switchCamera(lifecycleOwner, it) }
-                    },
-                    enabled = !uiState.isRecording,
+                // Action Buttons Row (Gallery/Pause, Shutter, Switch Camera)
+                Row(
                     modifier = Modifier
-                        .size(54.dp)
-                        .clip(CircleShape)
-                        .background(Color(0x66000000))
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Cameraswitch,
+                    // Left slot: Pause/Resume while recording, else round thumbnail of the last capture
+                    if (uiState.isRecording) {
+                        ControlChip(
+                            icon = if (uiState.isRecordingPaused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
+                            contentDescription = if (uiState.isRecordingPaused) "Resume recording" else "Pause recording",
+                            tint = if (uiState.isRecordingPaused) CameraColors.Emerald else CameraColors.Amber,
+                            onClick = { viewModel.pauseResumeVideoRecording() },
+                            size = 56,
+                            iconSize = 28
+                        )
+                    } else {
+                        GalleryThumbnailButton(
+                            uri = uiState.lastCapturedUri,
+                            isVideo = uiState.lastCapturedIsVideo,
+                            onClick = onOpenGallery
+                        )
+                    }
+
+                    ShutterButton(
+                        mode = uiState.cameraMode,
+                        isRecording = uiState.isRecording,
+                        isCapturing = uiState.isCapturing,
+                        onClick = {
+                            if (uiState.cameraMode == CameraMode.PHOTO) viewModel.capturePhoto()
+                            else viewModel.toggleVideoRecording()
+                        }
+                    )
+
+                    // Switch Camera Button (flips with a half-turn)
+                    ControlChip(
+                        icon = Icons.Rounded.Cameraswitch,
                         contentDescription = "Switch Camera",
-                        tint = if (uiState.isRecording) Color.Gray else Color.White,
-                        modifier = Modifier.size(28.dp)
+                        tint = Color.White,
+                        enabled = !uiState.isRecording,
+                        size = 56,
+                        iconSize = 28,
+                        iconRotation = switchRotation,
+                        onClick = {
+                            previewView?.let {
+                                switchTurns += 1f
+                                viewModel.switchCamera(lifecycleOwner, it)
+                            }
+                        }
                     )
                 }
             }
