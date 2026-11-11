@@ -117,6 +117,7 @@ class CameraViewModel @Inject constructor(
         val gps: GpsData,
         val isOnline: Boolean,
         val map: Bitmap?,
+        val mapTileType: MapTileType,
         val showQr: Boolean,
         val useDms: Boolean
     )
@@ -158,6 +159,7 @@ class CameraViewModel @Inject constructor(
                     gps = StampPreview.displayData(state.gpsData),
                     isOnline = state.isEffectiveOnline,
                     map = state.mapThumbnail,
+                    mapTileType = state.mapTileType,
                     showQr = state.showQr,
                     useDms = state.useDms
                 )
@@ -173,6 +175,7 @@ class CameraViewModel @Inject constructor(
                                     gpsData = key.gps,
                                     isOnline = key.isOnline,
                                     mapThumbnail = key.map,
+                                    mapTileType = key.mapTileType,
                                     showQr = key.showQr,
                                     useDms = key.useDms,
                                     watermarkText = STAMP_BRAND,
@@ -412,6 +415,7 @@ class CameraViewModel @Inject constructor(
                     gpsData = currentState.gpsData,
                     isOnline = currentState.isEffectiveOnline,
                     mapThumbnail = currentState.mapThumbnail,
+                    mapTileType = currentState.mapTileType,
                     showQr = currentState.showQr,
                     useDms = currentState.useDms,
                     watermarkText = STAMP_BRAND,

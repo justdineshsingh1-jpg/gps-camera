@@ -72,10 +72,12 @@ fun StatusIndicators(
         // 2. GPS Signal Lock Pill
         val gpsLocked = gpsData.isLocked && gpsData.latitude != 0.0
         val gpsColor = if (gpsLocked) Color(0xFF00E676) else Color(0xFFFFEB3B)
+        val satsText = if (gpsData.satellitesCount > 0) "${gpsData.satellitesCount} Sats • " else ""
+        val accText = "±${gpsData.accuracyMeters.toInt().coerceAtLeast(1)}m"
         val gpsText = if (gpsLocked) {
-            "GPS: Locked (±${gpsData.accuracyMeters.toInt()}m)"
+            "GPS: Locked ($satsText$accText)"
         } else {
-            "GPS: Acquiring..."
+            if (gpsData.satellitesCount > 0) "GPS: Searching (${gpsData.satellitesCount} Sats)..." else "GPS: Acquiring..."
         }
 
         Row(

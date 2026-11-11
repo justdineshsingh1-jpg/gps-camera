@@ -2,10 +2,13 @@ package com.gpsmapcamera.app.core.location
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.location.GnssStatus
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
 import android.os.Looper
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
@@ -31,11 +34,39 @@ class LocationTracker @Inject constructor(
     fun getLocationUpdates(intervalMs: Long = 1000L): Flow<GpsData> = callbackFlow {
         var latestCompass = 0.0f
         var latestGpsData = GpsData()
+        var currentSatellites = 0
+
+        val gnssCallback = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            object : GnssStatus.Callback() {
+                override fun onSatelliteStatusChanged(status: GnssStatus) {
+                    var used = 0
+                    val total = status.satelliteCount
+                    for (i in 0 until total) {
+                        if (status.usedInFix(i)) used++
+                    }
+                    currentSatellites = if (used > 0) used else total
+                    if (latestGpsData.latitude != 0.0 || latestGpsData.longitude != 0.0) {
+                        latestGpsData = latestGpsData.copy(satellitesCount = currentSatellites)
+                        trySend(latestGpsData)
+                    }
+                }
+            }
+        } else null
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && gnssCallback != null) {
+                locationManager.registerGnssStatusCallback(gnssCallback, Handler(Looper.getMainLooper()))
+            }
+        } catch (_: Exception) {}
 
         fun updateAndEmit(loc: Location) {
             val plusCode = OpenLocationCode.encode(loc.latitude, loc.longitude)
             val compassDir = LocationFormattingUtils.getCompassDirection(latestCompass)
             val isMock = MockLocationDetector.isLocationMock(loc) || MockLocationDetector.isMockLocationActive(context, loc)
+            val satsFromExtras = try {
+                loc.extras?.getInt("satellites", 0) ?: 0
+            } catch (_: Exception) { 0 }
+            val sats = if (currentSatellites > 0) currentSatellites else satsFromExtras
 
             latestGpsData = latestGpsData.copy(
                 latitude = loc.latitude,
@@ -49,6 +80,7 @@ class LocationTracker @Inject constructor(
                 plusCode = plusCode,
                 timestamp = loc.time.takeIf { it > 0 } ?: System.currentTimeMillis(),
                 isLocked = true,
+                satellitesCount = sats,
                 isMockLocation = isMock
             )
             trySend(latestGpsData)
@@ -107,6 +139,11 @@ class LocationTracker @Inject constructor(
             try {
                 locationManager.removeUpdates(locationListener)
             } catch (ignored: Exception) {}
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && gnssCallback != null) {
+                try {
+                    locationManager.unregisterGnssStatusCallback(gnssCallback)
+                } catch (ignored: Exception) {}
+            }
         }
     }
 

@@ -39,6 +39,7 @@ object PhotoStampRenderer {
         gpsData: GpsData,
         isOnline: Boolean,
         mapThumbnail: Bitmap? = null,
+        mapTileType: MapTileType = MapTileType.GOOGLE_STREET,
         showQr: Boolean = true,
         useDms: Boolean = false,
         watermarkText: String = "GPS Map Camera",
@@ -48,7 +49,7 @@ object PhotoStampRenderer {
         val canvas = Canvas(result)
         drawStamp(
             canvas, result.width.toFloat(), result.height.toFloat(),
-            gpsData, isOnline, mapThumbnail, showQr, useDms, watermarkText, brandLogo
+            gpsData, isOnline, mapThumbnail, mapTileType, showQr, useDms, watermarkText, brandLogo
         )
         return result
     }
@@ -63,6 +64,7 @@ object PhotoStampRenderer {
         gpsData: GpsData,
         isOnline: Boolean,
         mapThumbnail: Bitmap? = null,
+        mapTileType: MapTileType = MapTileType.GOOGLE_STREET,
         showQr: Boolean = true,
         useDms: Boolean = false,
         watermarkText: String = "GPS Map Camera",
@@ -74,7 +76,7 @@ object PhotoStampRenderer {
         val bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
         drawStamp(
             Canvas(bitmap), w.toFloat(), h.toFloat(),
-            gpsData, isOnline, mapThumbnail, showQr, useDms, watermarkText, brandLogo
+            gpsData, isOnline, mapThumbnail, mapTileType, showQr, useDms, watermarkText, brandLogo
         )
         return bitmap
     }
@@ -222,6 +224,7 @@ object PhotoStampRenderer {
         gpsData: GpsData,
         isOnline: Boolean,
         mapThumbnail: Bitmap?,
+        mapTileType: MapTileType,
         showQr: Boolean,
         useDms: Boolean,
         watermarkText: String,
@@ -297,8 +300,12 @@ object PhotoStampRenderer {
                 // Google Logo in bottom-left of map thumbnail with authentic brand colors & backdrop
                 drawGoogleWatermark(canvas, mapRect.left + (5f * scale), mapRect.bottom - (5f * scale), scale)
             } else {
-                // No tile (offline and not cached): stylised map so the layout never changes.
-                drawOfflineMapPlaceholder(canvas, mapRect, scale, gpsData, isOnline)
+                // When tile is loading or offline: match user's selected map tile type!
+                if (mapTileType == MapTileType.GOOGLE_HYBRID) {
+                    drawOfflineSatellitePlaceholder(canvas, mapRect, scale, gpsData, isOnline)
+                } else {
+                    drawOfflineMapPlaceholder(canvas, mapRect, scale, gpsData, isOnline)
+                }
             }
 
             canvas.restore()
@@ -516,6 +523,57 @@ object PhotoStampRenderer {
             3.5f * scale, 3.5f * scale, tagBg
         )
         canvas.drawText(tagText, tx, ty, tagPaint)
+    }
+
+    /**
+     * Offline Satellite map panel: authentic dark aerial photograph simulation (dark terrain,
+     * canopy greens, dark river channel, and subtle roads) with authentic Google watermark.
+     * Guarantees that selecting SATELLITE mode visibly transforms the map immediately,
+     * both offline and online while tiles are loading.
+     */
+    private fun drawOfflineSatellitePlaceholder(canvas: Canvas, rect: RectF, scale: Float, gpsData: GpsData, isOnline: Boolean) {
+        val base = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(38, 45, 42) }
+        canvas.drawRect(rect, base)
+
+        val seed = ((gpsData.latitude * 1000).toLong() * 31 + (gpsData.longitude * 1000).toLong()).toInt()
+        val rnd = java.util.Random(seed.toLong())
+        val w = rect.width()
+        val h = rect.height()
+
+        val forest = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(28, 40, 32) }
+        val f1x = rect.left + w * (0.05f + rnd.nextFloat() * 0.4f)
+        val f1y = rect.top + h * (0.05f + rnd.nextFloat() * 0.4f)
+        canvas.drawRoundRect(RectF(f1x, f1y, f1x + w * 0.45f, f1y + h * 0.42f), 6f * scale, 6f * scale, forest)
+
+        val canopy = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(46, 58, 48) }
+        val c2x = rect.left + w * (0.45f + rnd.nextFloat() * 0.2f)
+        val c2y = rect.top + h * (0.45f + rnd.nextFloat() * 0.2f)
+        canvas.drawRoundRect(RectF(c2x, c2y, c2x + w * 0.4f, c2y + h * 0.35f), 6f * scale, 6f * scale, canopy)
+
+        val water = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.rgb(20, 36, 48)
+            style = Paint.Style.STROKE
+            strokeWidth = 6f * scale
+            strokeCap = Paint.Cap.ROUND
+        }
+        val ry = rect.top + h * (0.6f + rnd.nextFloat() * 0.2f)
+        val riverPath = Path().apply {
+            moveTo(rect.left - 4f * scale, ry)
+            cubicTo(rect.left + w * 0.3f, ry - h * 0.15f, rect.left + w * 0.6f, ry + h * 0.12f, rect.right + 4f * scale, ry - h * 0.05f)
+        }
+        canvas.drawPath(riverPath, water)
+
+        val road = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(180, 240, 220, 160)
+            style = Paint.Style.STROKE
+            strokeWidth = 2.5f * scale
+        }
+        val v1 = rect.left + w * (0.35f + rnd.nextFloat() * 0.15f)
+        val h1 = rect.top + h * (0.45f + rnd.nextFloat() * 0.15f)
+        canvas.drawLine(v1, rect.top, v1, rect.bottom, road)
+        canvas.drawLine(rect.left, h1, rect.right, h1, road)
+
+        drawGoogleWatermark(canvas, rect.left + (5f * scale), rect.bottom - (5f * scale), scale)
     }
 
     private fun drawGoogleMapPin(canvas: Canvas, mapRect: RectF, scale: Float) {

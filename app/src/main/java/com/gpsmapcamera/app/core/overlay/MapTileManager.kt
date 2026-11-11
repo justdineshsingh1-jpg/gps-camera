@@ -85,18 +85,22 @@ class MapTileManager @Inject constructor(
         }
         if (!isOnline) return@withContext null
 
-        // Fetch online with 2-second strict timeout
-        return@withContext withTimeoutOrNull(2200L) {
+        // Fetch online with 4.5-second timeout for high-res satellite/street tiles
+        return@withContext withTimeoutOrNull(4500L) {
             val candidateUrls = when (tileType) {
                 MapTileType.GOOGLE_STREET -> listOf(
                     "https://mt1.google.com/vt/lyrs=m&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}",
                     "https://mt0.google.com/vt/lyrs=m&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}",
-                    "https://mt2.google.com/vt/lyrs=m&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}"
+                    "https://mt2.google.com/vt/lyrs=m&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}",
+                    "https://mt3.google.com/vt/lyrs=m&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}"
                 )
                 MapTileType.GOOGLE_HYBRID -> listOf(
                     "https://mt1.google.com/vt/lyrs=y&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}",
                     "https://mt0.google.com/vt/lyrs=y&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}",
-                    "https://mt2.google.com/vt/lyrs=y&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}"
+                    "https://mt2.google.com/vt/lyrs=y&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}",
+                    "https://mt3.google.com/vt/lyrs=y&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}",
+                    "https://mt1.google.com/vt/lyrs=s&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}",
+                    "https://mt0.google.com/vt/lyrs=s&x=${tileCoord.x}&y=${tileCoord.y}&z=${tileCoord.zoom}"
                 )
             }
 
@@ -115,8 +119,8 @@ class MapTileManager @Inject constructor(
     private fun fetchTileBitmap(urlStr: String): Bitmap? {
         return try {
             val connection = (URL(urlStr).openConnection() as HttpURLConnection).apply {
-                connectTimeout = 1400
-                readTimeout = 1400
+                connectTimeout = 3000
+                readTimeout = 3500
                 setRequestProperty("User-Agent", "Mozilla/5.0 (Linux; Android 14; Mobile) Chrome/124.0.0.0")
                 doInput = true
             }
