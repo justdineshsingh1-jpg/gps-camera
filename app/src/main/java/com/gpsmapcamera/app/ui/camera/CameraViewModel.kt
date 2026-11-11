@@ -616,21 +616,11 @@ class CameraViewModel @Inject constructor(
 
     // ---- In-App OTA Update controls ---------------------------------------------------------
     fun startAppUpdate(downloadUrl: String) {
-        viewModelScope.launch {
-            appUpdateManager.startDownload(downloadUrl)
-        }
+        appUpdateManager.startDownload(downloadUrl)
     }
 
     fun dismissAppUpdate() {
         appUpdateManager.dismiss()
-    }
-
-    fun retryInstallApk(file: File) {
-        appUpdateManager.installApk(file)
-    }
-
-    fun requestInstallPermission() {
-        appUpdateManager.requestInstallPermission()
     }
 
     fun checkForUpdatesManual() {
