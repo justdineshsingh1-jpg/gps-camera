@@ -145,9 +145,17 @@ object PhotoStampRenderer {
         val countryFlag = getCountryFlag(gpsData.country)
         val headline = when {
             !gpsData.city.isNullOrBlank() && !gpsData.state.isNullOrBlank() && !gpsData.country.isNullOrBlank() ->
-                "${gpsData.city}, ${gpsData.state}, ${gpsData.country} $countryFlag"
+                if (gpsData.city.equals(gpsData.state, ignoreCase = true)) {
+                    "${gpsData.city}, ${gpsData.country} $countryFlag"
+                } else {
+                    "${gpsData.city}, ${gpsData.state}, ${gpsData.country} $countryFlag"
+                }
             !gpsData.city.isNullOrBlank() && !gpsData.state.isNullOrBlank() ->
-                "${gpsData.city}, ${gpsData.state} $countryFlag"
+                if (gpsData.city.equals(gpsData.state, ignoreCase = true)) {
+                    "${gpsData.city} $countryFlag"
+                } else {
+                    "${gpsData.city}, ${gpsData.state} $countryFlag"
+                }
             !gpsData.city.isNullOrBlank() -> gpsData.city
             !gpsData.addressLine.isNullOrBlank() -> gpsData.addressLine.take(40)
             gpsData.latitude != 0.0 -> "GPS Location: ${gpsData.plusCode}"

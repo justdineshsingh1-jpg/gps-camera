@@ -66,22 +66,39 @@ class GpsAppUnitTests {
 
     @Test
     fun testNortheastOfflineDatabase_Resolution() {
-        // Test Guwahati City resolution offline
-        val guwahatiAddr = com.gpsmapcamera.app.core.geocoder.NortheastOfflineDatabase.resolveOffline(26.1420, 91.7898)
-        assertTrue("Must resolve Guwahati", guwahatiAddr != null)
-        assertEquals("Assam", guwahatiAddr?.state)
-        assertEquals("India", guwahatiAddr?.country)
+        // Test Guwahati City (Kailashpur Rd, Jyotinagar, Noonmati) offline
+        val noonmati = com.gpsmapcamera.app.core.geocoder.NortheastOfflineDatabase.resolveOffline(26.1926, 91.7928)
+        assertTrue("Must resolve Guwahati Noonmati offline", noonmati != null)
+        assertEquals("Assam", noonmati?.state)
+        assertEquals("Guwahati", noonmati?.city)
+        assertEquals("India", noonmati?.country)
+        assertTrue("Must contain Kailashpur Rd and 781021", noonmati?.formattedAddress?.contains("Kailashpur Rd") == true && noonmati?.formattedAddress?.contains("781021") == true)
+
+        // Test Delhi (Connaught Place) offline
+        val delhiCp = com.gpsmapcamera.app.core.geocoder.NortheastOfflineDatabase.resolveOffline(28.6304, 77.2177)
+        assertTrue("Must resolve Delhi Connaught Place offline", delhiCp != null)
+        assertEquals("Delhi", delhiCp?.state)
+        assertEquals("India", delhiCp?.country)
+        assertTrue("Must contain Connaught Place", delhiCp?.formattedAddress?.contains("Connaught Place") == true)
 
         // Test Remote Meghalaya Hill (Shillong Peak) offline
         val shillongHill = com.gpsmapcamera.app.core.geocoder.NortheastOfflineDatabase.resolveOffline(25.5348, 91.8542)
         assertTrue("Must resolve Meghalaya hill station offline", shillongHill != null)
         assertEquals("Meghalaya", shillongHill?.state)
-        assertTrue(shillongHill?.formattedAddress?.contains("East Khasi Hills") == true)
+        assertTrue("Must contain Shillong Peak", shillongHill?.formattedAddress?.contains("Shillong Peak") == true)
 
         // Test Arunachal Mountain (Tawang) offline
         val tawangMountain = com.gpsmapcamera.app.core.geocoder.NortheastOfflineDatabase.resolveOffline(27.5861, 91.8594)
         assertTrue("Must resolve Arunachal Pradesh mountain offline", tawangMountain != null)
         assertEquals("Arunachal Pradesh", tawangMountain?.state)
+    }
+
+    @Test
+    fun testOpenLocationCode_ShortCode() {
+        // Guwahati Kailashpur Rd: 26.1926, 91.7928
+        val shortCode = OpenLocationCode.getShortCode(26.1926, 91.7928)
+        assertTrue("Short code should contain '+'", shortCode.contains("+"))
+        assertEquals("Short code should be 7 or 8 characters", true, shortCode.length in 6..8)
     }
 
     @Test

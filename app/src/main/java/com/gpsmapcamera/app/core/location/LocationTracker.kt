@@ -35,6 +35,7 @@ class LocationTracker @Inject constructor(
         fun updateAndEmit(loc: Location) {
             val plusCode = OpenLocationCode.encode(loc.latitude, loc.longitude)
             val compassDir = LocationFormattingUtils.getCompassDirection(latestCompass)
+            val isMock = MockLocationDetector.isLocationMock(loc) || MockLocationDetector.isMockLocationActive(context, loc)
 
             latestGpsData = latestGpsData.copy(
                 latitude = loc.latitude,
@@ -47,7 +48,8 @@ class LocationTracker @Inject constructor(
                 compassDirection = compassDir,
                 plusCode = plusCode,
                 timestamp = loc.time.takeIf { it > 0 } ?: System.currentTimeMillis(),
-                isLocked = true
+                isLocked = true,
+                isMockLocation = isMock
             )
             trySend(latestGpsData)
         }

@@ -70,4 +70,18 @@ object OpenLocationCode {
 
         return code.toString()
     }
+
+    /**
+     * Generates a localized 4+2 short Plus Code prefix (e.g. "5qrv+x32") matching
+     * official Google Maps and reference camera stamps.
+     */
+    fun getShortCode(latitude: Double, longitude: Double): String {
+        val full = encode(latitude, longitude, PAIR_CODE_LENGTH)
+        val plusIdx = full.indexOf(SEPARATOR)
+        return if (plusIdx >= 4) {
+            full.substring(plusIdx - 4).lowercase()
+        } else {
+            full.lowercase()
+        }
+    }
 }

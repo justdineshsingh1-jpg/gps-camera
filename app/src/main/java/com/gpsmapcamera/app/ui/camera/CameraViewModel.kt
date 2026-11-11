@@ -75,6 +75,7 @@ data class CameraUiState(
     val isNightMode: Boolean = false,
     val isScreenFlashing: Boolean = false,
     val exposureCompensation: Int = 0,
+    val isMockLocationDetected: Boolean = false,
     val errorMessage: String? = null
 ) {
     val isTorchOn: Boolean
@@ -190,19 +191,23 @@ class CameraViewModel @Inject constructor(
         // Collect live GPS & Compass coordinates (1s interval)
         viewModelScope.launch {
             locationTracker.getLocationUpdates(1000L).collect { gps ->
-                _uiState.update { it.copy(gpsData = it.gpsData.copy(
-                    latitude = gps.latitude,
-                    longitude = gps.longitude,
-                    altitudeMeters = gps.altitudeMeters,
-                    accuracyMeters = gps.accuracyMeters,
-                    speedMps = gps.speedMps,
-                    bearingDegrees = gps.bearingDegrees,
-                    compassDegrees = gps.compassDegrees,
-                    compassDirection = gps.compassDirection,
-                    plusCode = gps.plusCode,
-                    timestamp = gps.timestamp,
-                    isLocked = gps.isLocked
-                )) }
+                _uiState.update { it.copy(
+                    gpsData = it.gpsData.copy(
+                        latitude = gps.latitude,
+                        longitude = gps.longitude,
+                        altitudeMeters = gps.altitudeMeters,
+                        accuracyMeters = gps.accuracyMeters,
+                        speedMps = gps.speedMps,
+                        bearingDegrees = gps.bearingDegrees,
+                        compassDegrees = gps.compassDegrees,
+                        compassDirection = gps.compassDirection,
+                        plusCode = gps.plusCode,
+                        timestamp = gps.timestamp,
+                        isLocked = gps.isLocked,
+                        isMockLocation = gps.isMockLocation
+                    ),
+                    isMockLocationDetected = gps.isMockLocation
+                ) }
 
                 checkAndTriggerGeocoding(gps.latitude, gps.longitude)
                 captureTrackSample()
@@ -381,6 +386,10 @@ class CameraViewModel @Inject constructor(
 
     fun capturePhoto() {
         val currentState = _uiState.value
+        if (currentState.isMockLocationDetected) {
+            _uiState.update { it.copy(errorMessage = "Mock location detected. Real location required.") }
+            return
+        }
         if (currentState.isCapturing || currentState.isRecording) return
 
         _uiState.update { it.copy(isCapturing = true, errorMessage = null) }
@@ -452,6 +461,10 @@ class CameraViewModel @Inject constructor(
 
     private fun startVideoRecording() {
         val currentState = _uiState.value
+        if (currentState.isMockLocationDetected) {
+            _uiState.update { it.copy(errorMessage = "Mock location detected. Real location required.") }
+            return
+        }
         if (currentState.isRecording || currentState.isCapturing) return
 
         val rawVideoFile = File(getApplication<Application>().cacheDir, "raw_video_${System.currentTimeMillis()}.mp4")

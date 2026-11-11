@@ -12,6 +12,7 @@ data class GpsData(
     val plusCode: String = "",
     val timestamp: Long = System.currentTimeMillis(),
     val isLocked: Boolean = false,
+    val isMockLocation: Boolean = false,
     val satellitesCount: Int = 0,
     val addressLine: String? = null,
     val city: String? = null,

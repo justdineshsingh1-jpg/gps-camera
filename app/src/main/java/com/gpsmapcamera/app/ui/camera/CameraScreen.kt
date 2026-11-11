@@ -1,5 +1,8 @@
 package com.gpsmapcamera.app.ui.camera
 
+import android.app.Activity
+import android.content.Intent
+import android.provider.Settings
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
@@ -44,7 +47,9 @@ import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material.icons.rounded.Satellite
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -64,6 +69,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
@@ -71,6 +77,8 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.gpsmapcamera.app.core.overlay.MapTileType
 import com.gpsmapcamera.app.ui.components.StatusIndicators
 import kotlinx.coroutines.delay
@@ -85,6 +93,7 @@ fun CameraScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val previewStamp by viewModel.previewStamp.collectAsState()
+    val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -482,5 +491,90 @@ fun CameraScreen(
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 150.dp)
         )
+
+        // Mock Location / GPS Spoofing Alert Prompt (Image 2)
+        if (uiState.isMockLocationDetected) {
+            MockLocationDialog(
+                onCloseApp = {
+                    (context as? Activity)?.finishAffinity()
+                },
+                onGoToSettings = {
+                    try {
+                        val intent = Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS)
+                        context.startActivity(intent)
+                    } catch (e: Exception) {
+                        try {
+                            val intent = Intent(Settings.ACTION_SETTINGS)
+                            context.startActivity(intent)
+                        } catch (_: Exception) {}
+                    }
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun MockLocationDialog(
+    onCloseApp: () -> Unit,
+    onGoToSettings: () -> Unit
+) {
+    Dialog(
+        onDismissRequest = {},
+        properties = DialogProperties(
+            dismissOnBackPress = false,
+            dismissOnClickOutside = false
+        )
+    ) {
+        Surface(
+            shape = RoundedCornerShape(12.dp),
+            color = Color(0xFF151D2A),
+            tonalElevation = 8.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp)
+            ) {
+                Text(
+                    text = "Can't Detect Your Real Location",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Your device is using a mock location.\nThis app needs your real location to work properly. Let's fix it together.\n\nOpen Setting -> Developer Options -> Turn Off",
+                    color = Color(0xFFCDD5E0),
+                    fontSize = 14.sp,
+                    lineHeight = 21.sp
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextButton(onClick = onCloseApp) {
+                        Text(
+                            text = "CLOSE APP",
+                            color = Color(0xFF90CAF9),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    TextButton(onClick = onGoToSettings) {
+                        Text(
+                            text = "GO TO SETTINGS",
+                            color = Color(0xFF90CAF9),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+            }
+        }
     }
 }
