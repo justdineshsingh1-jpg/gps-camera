@@ -322,8 +322,7 @@ class CameraViewModel @Inject constructor(
                     isOnline = currentState.isEffectiveOnline,
                     mapThumbnail = if (currentState.isEffectiveOnline) currentState.mapThumbnail else null,
                     showQr = currentState.showQr,
-                    useDms = currentState.useDms,
-                    samples = track
+                    useDms = currentState.useDms
                 )
 
                 val saveResult = mediaStorageManager.saveStampedPhoto(stampedBitmap, currentState.gpsData)
@@ -452,7 +451,8 @@ class CameraViewModel @Inject constructor(
                     isOnline = currentState.isEffectiveOnline,
                     mapThumbnail = if (currentState.isEffectiveOnline) currentState.mapThumbnail else null,
                     showQr = currentState.showQr,
-                    useDms = currentState.useDms
+                    useDms = currentState.useDms,
+                    samples = track
                 )
 
                 val saveResult = mediaStorageManager.saveStampedVideo(stampedFile, System.currentTimeMillis())

@@ -13,6 +13,9 @@ import kotlin.math.max
 
 object PhotoStampRenderer {
 
+    /** Overall stamp size multiplier (text, map, QR, padding). */
+    private const val STAMP_SIZE_BOOST = 1.35f
+
     /**
      * Composites a permanent GPS stamp matching reference styling (Zero Empty Space):
      * - Top-Right Badge: [GPS Map Camera]
@@ -42,7 +45,8 @@ object PhotoStampRenderer {
         val imgHeight = result.height.toFloat()
 
         // Normalize scaling against 1080px reference
-        val scale = max(imgWidth / 1080f, 0.6f)
+        // 1.35x readability boost so the saved stamp reads as large as the live preview
+        val scale = max(imgWidth / 1080f, 0.6f) * STAMP_SIZE_BOOST
 
         val margin = 18f * scale
         val cardPadding = 13f * scale
