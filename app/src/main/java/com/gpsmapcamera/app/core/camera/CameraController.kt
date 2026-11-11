@@ -155,55 +155,32 @@ class CameraController @Inject constructor(
             .build()
         videoCapture = VideoCapture.withOutput(recorder)
 
-        // 4. Resolve Extension-enabled selector (Night Mode / HDR / Auto)
-        val ext = extensionsManager
-        val extensionSelector = if (ext != null) {
-            if (isNightMode && ext.isExtensionAvailable(baseSelector, ExtensionMode.NIGHT)) {
-                ext.getExtensionEnabledCameraSelector(baseSelector, ExtensionMode.NIGHT)
-            } else if (ext.isExtensionAvailable(baseSelector, ExtensionMode.HDR)) {
-                ext.getExtensionEnabledCameraSelector(baseSelector, ExtensionMode.HDR)
-            } else if (ext.isExtensionAvailable(baseSelector, ExtensionMode.AUTO)) {
-                ext.getExtensionEnabledCameraSelector(baseSelector, ExtensionMode.AUTO)
-            } else {
-                baseSelector
-            }
-        } else {
-            baseSelector
-        }
-
+        // 4. Bind camera use cases with standard baseSelector
+        // VideoCapture and ImageCapture together are fully supported on baseSelector.
+        // Night mode low-light sensitivity is applied dynamically via hardware exposure boost without closing the camera.
         try {
             provider.unbindAll()
             camera = provider.bindToLifecycle(
                 lifecycleOwner,
-                extensionSelector,
+                baseSelector,
                 preview,
                 imageCapture,
                 videoCapture
             )
+            applyNightModeSettings()
         } catch (e: Exception) {
-            // If binding with extension fails (e.g. video capture restriction on limited devices), fallback to baseSelector
+            // Fallback for limited hardware devices that do not support 3 concurrent streams: bind preview + imageCapture
             try {
                 provider.unbindAll()
                 camera = provider.bindToLifecycle(
                     lifecycleOwner,
                     baseSelector,
                     preview,
-                    imageCapture,
-                    videoCapture
+                    imageCapture
                 )
+                applyNightModeSettings()
             } catch (fallbackEx: Exception) {
-                // If 3 concurrent streams exceed hardware capabilities, guarantee preview + photo capture works
-                try {
-                    provider.unbindAll()
-                    camera = provider.bindToLifecycle(
-                        lifecycleOwner,
-                        baseSelector,
-                        preview,
-                        imageCapture
-                    )
-                } catch (lastEx: Exception) {
-                    lastEx.printStackTrace()
-                }
+                fallbackEx.printStackTrace()
             }
         }
     }
@@ -226,9 +203,26 @@ class CameraController @Inject constructor(
         camera?.cameraControl?.enableTorch(enable)
     }
 
-    fun setNightMode(enable: Boolean, lifecycleOwner: LifecycleOwner, previewView: PreviewView) {
+    fun setNightMode(enable: Boolean, lifecycleOwner: LifecycleOwner? = null, previewView: PreviewView? = null) {
         isNightMode = enable
-        bindCameraUseCases(lifecycleOwner, previewView)
+        applyNightModeSettings()
+    }
+
+    private fun applyNightModeSettings() {
+        try {
+            val cam = camera ?: return
+            val range = cam.cameraInfo.exposureState.exposureCompensationRange
+            if (isNightMode) {
+                // Boost exposure compensation to gather maximum light in dark/night conditions (+2 to +3 EV)
+                val targetEv = range.upper.coerceAtMost(3).coerceAtLeast(1)
+                cam.cameraControl.setExposureCompensationIndex(targetEv)
+            } else {
+                // Reset exposure compensation back to neutral
+                cam.cameraControl.setExposureCompensationIndex(0)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
     }
 
     fun setLinearZoom(zoom: Float) {

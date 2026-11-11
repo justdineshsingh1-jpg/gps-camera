@@ -371,7 +371,7 @@ class CameraViewModel @Inject constructor(
         cycleFlashMode()
     }
 
-    fun toggleNightMode(lifecycleOwner: LifecycleOwner, previewView: PreviewView) {
+    fun toggleNightMode(lifecycleOwner: LifecycleOwner? = null, previewView: PreviewView? = null) {
         val next = !_uiState.value.isNightMode
         cameraController.setNightMode(next, lifecycleOwner, previewView)
         _uiState.update { it.copy(isNightMode = next) }
