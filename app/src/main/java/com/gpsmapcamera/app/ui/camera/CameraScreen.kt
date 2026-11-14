@@ -132,6 +132,7 @@ fun CameraScreen(
     LaunchedEffect(uiState.errorMessage) {
         uiState.errorMessage?.let { error ->
             snackbarHostState.showSnackbar(error)
+            viewModel.clearErrorMessage()
         }
     }
 
@@ -147,6 +148,7 @@ fun CameraScreen(
             factory = { ctx ->
                 PreviewView(ctx).apply {
                     this.scaleType = PreviewView.ScaleType.FILL_CENTER
+                    this.implementationMode = PreviewView.ImplementationMode.COMPATIBLE
                     previewView = this
                     viewModel.initializeCamera(lifecycleOwner, this)
                 }
@@ -261,7 +263,14 @@ fun CameraScreen(
                     tint = if (uiState.isNightMode) CameraColors.Moon else Color(0xFFC7D2FE),
                     active = uiState.isNightMode,
                     activeBrush = Brush.linearGradient(listOf(CameraColors.Indigo, Color(0xFF7C3AED))),
-                    onClick = { previewView?.let { viewModel.toggleNightMode(lifecycleOwner, it) } }
+                    onClick = {
+                        viewModel.toggleNightMode()
+                        Toast.makeText(
+                            context,
+                            if (!uiState.isNightMode) "Night Mode ON" else "Night Mode OFF",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
                 )
 
                 Spacer(modifier = Modifier.size(8.dp))

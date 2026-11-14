@@ -227,7 +227,7 @@ class CameraViewModel @Inject constructor(
             networkObserver.observe().collect { status ->
                 _uiState.update { it.copy(networkStatus = status) }
                 val current = _uiState.value
-                if (status == NetworkStatus.ONLINE && current.gpsData.latitude != 0.0) {
+                if (current.gpsData.latitude != 0.0) {
                     checkAndTriggerGeocoding(current.gpsData.latitude, current.gpsData.longitude, force = true)
                 }
             }
@@ -389,10 +389,14 @@ class CameraViewModel @Inject constructor(
         cycleFlashMode()
     }
 
-    fun toggleNightMode(lifecycleOwner: LifecycleOwner? = null, previewView: PreviewView? = null) {
+    fun toggleNightMode() {
         val next = !_uiState.value.isNightMode
-        cameraController.setNightMode(next, lifecycleOwner, previewView)
-        _uiState.update { it.copy(isNightMode = next) }
+        cameraController.setNightMode(next)
+        _uiState.update { it.copy(isNightMode = next, errorMessage = null) }
+    }
+
+    fun clearErrorMessage() {
+        _uiState.update { it.copy(errorMessage = null) }
     }
 
     fun adjustExposure(delta: Int) {
@@ -431,9 +435,26 @@ class CameraViewModel @Inject constructor(
                     rawBitmap = NightEnhancer.enhanceLowLight(rawBitmap)
                 }
 
+                // Immediately resolve address right before stamping to ensure freshest location stamp
+                val freshGpsData = if (currentState.gpsData.latitude != 0.0) {
+                    val resolved = addressRepository.resolveAddress(
+                        currentState.gpsData.latitude,
+                        currentState.gpsData.longitude,
+                        currentState.isEffectiveOnline
+                    )
+                    currentState.gpsData.copy(
+                        addressLine = resolved.formattedAddress,
+                        city = resolved.city,
+                        state = resolved.state,
+                        country = resolved.country
+                    )
+                } else {
+                    currentState.gpsData
+                }
+
                 val stampedBitmap = PhotoStampRenderer.createStampedBitmap(
                     sourceBitmap = rawBitmap,
-                    gpsData = currentState.gpsData,
+                    gpsData = freshGpsData,
                     isOnline = currentState.isEffectiveOnline,
                     mapThumbnail = currentState.mapThumbnail,
                     mapTileType = currentState.mapTileType,
@@ -443,7 +464,7 @@ class CameraViewModel @Inject constructor(
                     brandLogo = brandLogo
                 )
 
-                val saveResult = mediaStorageManager.saveStampedPhoto(stampedBitmap, currentState.gpsData)
+                val saveResult = mediaStorageManager.saveStampedPhoto(stampedBitmap, freshGpsData)
 
                 if (saveResult.isSuccess) {
                     _uiState.update {
@@ -525,12 +546,18 @@ class CameraViewModel @Inject constructor(
                 is VideoRecordEvent.Finalize -> {
                     timerJob?.cancel()
                     if (event.hasError()) {
-                        _uiState.update {
-                            it.copy(
-                                isRecording = false,
-                                isRecordingPaused = false,
-                                errorMessage = "Recording error code: ${event.error}"
-                            )
+                        // Even if CameraX reported an error (e.g. ERROR_SOURCE_INACTIVE code 4 when screen turns off / app pauses),
+                        // if recorded video data exists on disk (>50KB), ensure it is saved so user never loses their recording!
+                        if (rawVideoFile.exists() && rawVideoFile.length() > 50_000L) {
+                            burnStampAndSaveVideo(rawVideoFile)
+                        } else {
+                            _uiState.update {
+                                it.copy(
+                                    isRecording = false,
+                                    isRecordingPaused = false,
+                                    errorMessage = "Recording error code: ${event.error}"
+                                )
+                            }
                         }
                     } else {
                         burnStampAndSaveVideo(rawVideoFile)

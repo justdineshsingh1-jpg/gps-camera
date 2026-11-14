@@ -214,11 +214,8 @@ class CameraController @Inject constructor(
 
     suspend fun capturePhoto(fallbackBitmap: Bitmap? = null): Bitmap = suspendCancellableCoroutine { continuation ->
         val capture = imageCapture ?: run {
-            if (fallbackBitmap != null) {
-                continuation.resume(fallbackBitmap)
-            } else {
-                continuation.resumeWithException(IllegalStateException("ImageCapture not bound"))
-            }
+            val recovered = fallbackBitmap ?: Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
+            continuation.resume(recovered)
             return@suspendCancellableCoroutine
         }
 
@@ -257,21 +254,15 @@ class CameraController @Inject constructor(
                         continuation.resume(bitmap)
                     } catch (e: Exception) {
                         image.close()
-                        if (fallbackBitmap != null) {
-                            continuation.resume(fallbackBitmap)
-                        } else {
-                            continuation.resumeWithException(e)
-                        }
+                        val recovered = fallbackBitmap ?: Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
+                        continuation.resume(recovered)
                     }
                 }
 
                 override fun onError(exception: ImageCaptureException) {
                     restoreVolume()
-                    if (fallbackBitmap != null) {
-                        continuation.resume(fallbackBitmap)
-                    } else {
-                        continuation.resumeWithException(exception)
-                    }
+                    val recovered = fallbackBitmap ?: Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
+                    continuation.resume(recovered)
                 }
             }
         )

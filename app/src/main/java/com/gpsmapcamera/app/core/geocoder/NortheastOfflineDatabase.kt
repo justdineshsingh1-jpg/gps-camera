@@ -40,14 +40,37 @@ object NortheastOfflineDatabase {
         NortheastPlace("Sarumotoria, Hengrabari", "Guwahati", "Kamrup Metropolitan", "Assam", "781036", 26.1472, 91.7888),
         NortheastPlace("Supermarket, Last Gate", "Guwahati", "Kamrup Metropolitan", "Assam", "781006", 26.1382, 91.7945),
         NortheastPlace("Six Mile, VIP Road", "Guwahati", "Kamrup Metropolitan", "Assam", "781022", 26.1369, 91.8082),
+        NortheastPlace("Six Mile Flyover, GS Road", "Guwahati", "Kamrup Metropolitan", "Assam", "781022", 26.1355, 91.8075),
+        NortheastPlace("Dwarandha, Six Mile", "Guwahati", "Kamrup Metropolitan", "Assam", "781022", 26.1335, 91.8095),
+        NortheastPlace("Satgaon, Army Camp", "Guwahati", "Kamrup Metropolitan", "Assam", "781027", 26.1528, 91.8285),
+        NortheastPlace("Satgaon Bazar, Narengi Rd", "Guwahati", "Kamrup Metropolitan", "Assam", "781027", 26.1502, 91.8242),
+        NortheastPlace("Panjabari, Kalakshetra", "Guwahati", "Kamrup Metropolitan", "Assam", "781037", 26.1385, 91.8235),
+        NortheastPlace("Baghorbori, Panjabari", "Guwahati", "Kamrup Metropolitan", "Assam", "781037", 26.1425, 91.8315),
+        NortheastPlace("VIP Road, Chachal", "Guwahati", "Kamrup Metropolitan", "Assam", "781022", 26.1482, 91.8155),
+        NortheastPlace("Patharquarry, VIP Road", "Guwahati", "Kamrup Metropolitan", "Assam", "781071", 26.1685, 91.8285),
+        NortheastPlace("Narengi Tiniali", "Guwahati", "Kamrup Metropolitan", "Assam", "781026", 26.1825, 91.8285),
+        NortheastPlace("Bormotoria, Down Town", "Guwahati", "Kamrup Metropolitan", "Assam", "781006", 26.1398, 91.8025),
+        NortheastPlace("Rukminigaon, Dispur", "Guwahati", "Kamrup Metropolitan", "Assam", "781022", 26.1388, 91.7985),
+        NortheastPlace("Hengrabari, Public Health", "Guwahati", "Kamrup Metropolitan", "Assam", "781036", 26.1552, 91.7955),
+        NortheastPlace("Kahilipara Colony", "Guwahati", "Kamrup Metropolitan", "Assam", "781019", 26.1455, 91.7655),
         NortheastPlace("Khanapara", "Guwahati", "Kamrup Metropolitan", "Assam", "781022", 26.1264, 91.8219),
         NortheastPlace("Beltola", "Guwahati", "Kamrup Metropolitan", "Assam", "781028", 26.1287, 91.7942),
+        NortheastPlace("Jayanagar, Beltola", "Guwahati", "Kamrup Metropolitan", "Assam", "781028", 26.1245, 91.7985),
         NortheastPlace("Bhetapara", "Guwahati", "Kamrup Metropolitan", "Assam", "781028", 26.1173, 91.7865),
         NortheastPlace("Hatigaon", "Guwahati", "Kamrup Metropolitan", "Assam", "781038", 26.1345, 91.7891),
         NortheastPlace("Lalmati, Lokhra", "Guwahati", "Kamrup Metropolitan", "Assam", "781029", 26.1154, 91.7521),
+        NortheastPlace("Lokhra Chariali, NH 27", "Guwahati", "Kamrup Metropolitan", "Assam", "781034", 26.1085, 91.7455),
+        NortheastPlace("Sawkuchi, Lalmati", "Guwahati", "Kamrup Metropolitan", "Assam", "781034", 26.1185, 91.7615),
         NortheastPlace("ISBT Betkuchi, Garchuk", "Guwahati", "Kamrup Metropolitan", "Assam", "781035", 26.1245, 91.7182),
+        NortheastPlace("Boragaon, NH 27", "Guwahati", "Kamrup Metropolitan", "Assam", "781033", 26.1385, 91.6985),
         NortheastPlace("Maligaon, NF Railway HQ", "Guwahati", "Kamrup Metropolitan", "Assam", "781011", 26.1601, 91.7012),
+        NortheastPlace("Pandu, Port Road", "Guwahati", "Kamrup Metropolitan", "Assam", "781012", 26.1725, 91.6885),
         NortheastPlace("Kamakhya Temple, Nilachal Hill", "Guwahati", "Kamrup Metropolitan", "Assam", "781010", 26.1664, 91.7056),
+        NortheastPlace("Kamakhya Gate, Bharalumukh", "Guwahati", "Kamrup Metropolitan", "Assam", "781009", 26.1685, 91.7255),
+        NortheastPlace("Fancy Bazaar, MG Road", "Guwahati", "Kamrup Metropolitan", "Assam", "781001", 26.1855, 91.7425),
+        NortheastPlace("Sonapur, Kamrup Metro", "Sonapur", "Kamrup Metropolitan", "Assam", "782402", 26.1185, 91.9755),
+        NortheastPlace("Khetri, Kamrup Metro", "Khetri", "Kamrup Metropolitan", "Assam", "782403", 26.1025, 92.0855),
+        NortheastPlace("Chandrapur, Brahmaputra", "Chandrapur", "Kamrup Metropolitan", "Assam", "781150", 26.2155, 91.9125),
         NortheastPlace("Jalukbari, Gauhati University", "Guwahati", "Kamrup Metropolitan", "Assam", "781014", 26.1458, 91.6627),
         NortheastPlace("Borjhar, LGBI Airport", "Guwahati", "Kamrup", "Assam", "781015", 26.1061, 91.5859),
         NortheastPlace("North Guwahati, IIT Guwahati", "Guwahati", "Kamrup", "Assam", "781039", 26.1966, 91.7214),
@@ -450,7 +473,7 @@ object NortheastOfflineDatabase {
         return if (minDistanceKm <= 150.0) {
             val shortCode = OpenLocationCode.getShortCode(latitude, longitude)
 
-            val formatted = if (minDistanceKm <= 1.5) {
+            val formatted = if (minDistanceKm <= 3.0) {
                 val cityPart = if (nearestPlace.name.contains(nearestPlace.city, ignoreCase = true) || nearestPlace.city.equals(nearestPlace.state, ignoreCase = true)) {
                     ""
                 } else {
@@ -458,21 +481,12 @@ object NortheastOfflineDatabase {
                 }
                 "$shortCode, ${nearestPlace.name}$cityPart, ${nearestPlace.state} ${nearestPlace.pincode}, India"
             } else {
-                val dir = getCardinalDirection(nearestPlace.latitude, nearestPlace.longitude, latitude, longitude)
                 val cityPart = if (nearestPlace.name.contains(nearestPlace.city, ignoreCase = true) || nearestPlace.city.equals(nearestPlace.state, ignoreCase = true)) {
                     ""
                 } else {
                     ", ${nearestPlace.city}"
                 }
-                String.format(
-                    Locale.US,
-                    "$shortCode, %.1f km %s of %s$cityPart, %s %s, India",
-                    minDistanceKm,
-                    dir,
-                    nearestPlace.name,
-                    nearestPlace.state,
-                    nearestPlace.pincode
-                )
+                "$shortCode, Near ${nearestPlace.name}$cityPart, ${nearestPlace.state} ${nearestPlace.pincode}, India"
             }
 
             ResolvedAddress(

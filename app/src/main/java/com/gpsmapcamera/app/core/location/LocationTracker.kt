@@ -115,6 +115,10 @@ class LocationTracker @Inject constructor(
             override fun onProviderDisabled(provider: String) {}
         }
 
+        // Always start LocationManager GPS_PROVIDER in parallel to ensure continuous hardware satellite updates
+        // even when mobile data is turned off or FusedLocation throttles offline
+        startLocationManagerFallback(locationListener, intervalMs)
+
         try {
             val locationRequest = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, intervalMs)
                 .setMinUpdateIntervalMillis(500L)
@@ -124,13 +128,7 @@ class LocationTracker @Inject constructor(
                 .addOnSuccessListener {
                     usedFused = true
                 }
-                .addOnFailureListener {
-                    // Fallback directly to LocationManager
-                    startLocationManagerFallback(locationListener, intervalMs)
-                }
-        } catch (e: Exception) {
-            startLocationManagerFallback(locationListener, intervalMs)
-        }
+        } catch (_: Exception) {}
 
         awaitClose {
             if (usedFused) {
