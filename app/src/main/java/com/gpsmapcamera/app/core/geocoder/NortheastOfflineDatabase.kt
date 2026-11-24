@@ -626,11 +626,11 @@ object NortheastOfflineDatabase {
                 ", ${nearestPlace.city}"
             }
 
-            val formatted = if (minDistanceKm < 0.05) {
-                // Within 50 meters of exact landmark center
+            val formatted = if (minDistanceKm < 0.015) {
+                // Within 15 meters of exact landmark node center
                 "$shortCode, ${nearestPlace.name}$cityPart, ${nearestPlace.state} ${nearestPlace.pincode}, India"
             } else {
-                // Dynamically display exact distance and cardinal direction so address reflects movement offline
+                // Dynamically display exact distance and cardinal direction so walking even a few steps visibly changes the address!
                 val distMeters = (minDistanceKm * 1000).roundToInt()
                 val dir = getCardinalDirection(nearestPlace.latitude, nearestPlace.longitude, latitude, longitude)
                 val distStr = if (distMeters < 1000) "${distMeters}m" else String.format(Locale.US, "%.1f km", minDistanceKm)

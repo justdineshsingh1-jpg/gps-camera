@@ -77,6 +77,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
@@ -108,19 +109,20 @@ fun CameraScreen(
     var previewView: PreviewView? by remember { mutableStateOf(null) }
     var currentZoom by remember { mutableFloatStateOf(0f) }
     var previewSize by remember { mutableStateOf(IntSize.Zero) }
+    var bottomControlsTopY by remember { mutableFloatStateOf(Float.MAX_VALUE) }
     var focusPoint by remember { mutableStateOf<Offset?>(null) }
-    val focusRingScale = remember { Animatable(1.25f) }
+    val focusRingScale = remember { Animatable(1.2f) }
     val focusRingAlpha = remember { Animatable(1.0f) }
 
     LaunchedEffect(focusPoint) {
         if (focusPoint != null) {
-            focusRingScale.snapTo(1.25f)
+            focusRingScale.snapTo(1.2f)
             focusRingAlpha.snapTo(1.0f)
             launch {
-                focusRingScale.animateTo(1.0f, animationSpec = tween(180))
+                focusRingScale.animateTo(1.0f, animationSpec = tween(150))
             }
-            delay(400)
-            focusRingAlpha.animateTo(0.0f, animationSpec = tween(220))
+            delay(350)
+            focusRingAlpha.animateTo(0.0f, animationSpec = tween(200))
             focusPoint = null
         }
     }
@@ -175,11 +177,11 @@ fun CameraScreen(
                         val w = if (previewSize.width > 0) previewSize.width.toFloat() else 1080f
                         val h = if (previewSize.height > 0) previewSize.height.toFloat() else 1920f
                         val density = context.resources.displayMetrics.density
-                        // Exclude top status bar (~110dp) and bottom controls/stamp area (~280dp)
+                        // Exclude top status bar (~110dp) and bottom controls/stamp area (~320dp+ dynamically measured)
                         // so tapping zoom pills, photo/video switch, or shutter NEVER spawns a focus ring
                         val topBoundary = 110f * density
-                        val bottomBoundary = h - (280f * density)
-                        if (tapOffset.y in topBoundary..bottomBoundary) {
+                        val maxAllowedY = minOf(h - (320f * density), bottomControlsTopY - (10f * density))
+                        if (tapOffset.y in topBoundary..maxAllowedY) {
                             focusPoint = tapOffset
                             viewModel.onPreviewTapped(tapOffset.x, tapOffset.y, w, h)
                         }
@@ -381,6 +383,9 @@ fun CameraScreen(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
+                .onGloballyPositioned { coordinates ->
+                    bottomControlsTopY = coordinates.positionInRoot().y
+                }
                 .navigationBarsPadding()
                 .padding(vertical = 8.dp)
         ) {

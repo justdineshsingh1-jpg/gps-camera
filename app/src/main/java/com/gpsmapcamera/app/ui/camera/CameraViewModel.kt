@@ -252,14 +252,15 @@ class CameraViewModel @Inject constructor(
     private fun checkAndTriggerGeocoding(lat: Double, lon: Double, force: Boolean = false) {
         if (lat == 0.0 && lon == 0.0) return
 
-        // 0.00004 deg is ~4.4 meters, ensuring real-time address updates even when walking offline
-        val moved = abs(lat - lastGeocodedLat) > 0.00004 || abs(lon - lastGeocodedLon) > 0.00004
+        val isOnline = _uiState.value.isEffectiveOnline
+        // Offline computation is instant (<0.1ms in memory). We use a tighter threshold (~1.1m) so walking even 1-2 steps updates the relative distance/direction immediately.
+        val movementThreshold = if (isOnline) 0.00004 else 0.00001
+        val moved = abs(lat - lastGeocodedLat) > movementThreshold || abs(lon - lastGeocodedLon) > movementThreshold
         if (moved || force || _uiState.value.gpsData.addressLine == null) {
             lastGeocodedLat = lat
             lastGeocodedLon = lon
 
             viewModelScope.launch {
-                val isOnline = _uiState.value.isEffectiveOnline
                 val resolved = addressRepository.resolveAddress(lat, lon, isOnline)
                 _uiState.update {
                     it.copy(
@@ -345,7 +346,9 @@ class CameraViewModel @Inject constructor(
             }
             it.copy(connectivityMode = nextMode)
         }
-        // Re-resolve address + map for the new mode (offline uses the on-device database & tile cache).
+        // Force immediate re-resolve address + map for the new mode (offline uses the on-device database & tile cache).
+        lastGeocodedLat = 0.0
+        lastGeocodedLon = 0.0
         val gps = _uiState.value.gpsData
         checkAndTriggerGeocoding(gps.latitude, gps.longitude, force = true)
     }

@@ -31,9 +31,9 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    - name: Run Unit Tests and Build Debug APK
+    - name: Run Unit Tests and Build Signed APKs
       run: |
-        ./gradlew testDebugUnitTest assembleDebug --stacktrace --no-daemon > build_output.txt 2>&1
+        ./gradlew testDebugUnitTest assembleDebug assembleRelease --stacktrace --no-daemon > build_output.txt 2>&1
 
     - name: Commit Build Log on Failure
       if: failure()
@@ -49,14 +49,18 @@ jobs:
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: GPSMapCamera-Debug
-        path: app/build/outputs/apk/debug/app-debug.apk
+        name: GPSMapCamera-APKs
+        path: |
+          app/build/outputs/apk/debug/app-debug.apk
+          app/build/outputs/apk/release/app-release.apk
 
     - name: Publish GitHub Release
       if: startsWith(github.ref, 'refs/tags/v')
       uses: softprops/action-gh-release@v2
       with:
-        files: app/build/outputs/apk/debug/app-debug.apk
+        files: |
+          app/build/outputs/apk/debug/app-debug.apk
+          app/build/outputs/apk/release/app-release.apk
         name: GPS Map Camera ${{ github.ref_name }}
         draft: false
         prerelease: false

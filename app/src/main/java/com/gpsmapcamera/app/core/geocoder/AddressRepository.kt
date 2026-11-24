@@ -60,7 +60,14 @@ class AddressRepository @Inject constructor(
             }
         }
 
-        // Layer 2: Offline Room Cache within 35 meters (with real-time dynamic Plus Code)
+        // Layer 2: Embedded Regional Offline Database (Instant, real-time dynamic distance, direction, and Plus Code)
+        // Checked FIRST in offline mode so user gets live on-device geocoding that updates with every move
+        val offlineRegionalResult = NortheastOfflineDatabase.resolveOffline(latitude, longitude)
+        if (offlineRegionalResult != null) {
+            return@withContext offlineRegionalResult
+        }
+
+        // Layer 3: Offline Room Cache fallback (only if outside embedded database regions)
         val cached = findCachedAddressWithin35m(latitude, longitude)
         if (cached != null) {
             val shortCode = OpenLocationCode.getShortCode(latitude, longitude)
@@ -73,12 +80,6 @@ class AddressRepository @Inject constructor(
                 country = cached.country,
                 isFromCache = true
             )
-        }
-
-        // Layer 3: Embedded Regional Offline Database (Real-time dynamic distance, direction, and Plus Code)
-        val offlineNortheastResult = NortheastOfflineDatabase.resolveOffline(latitude, longitude)
-        if (offlineNortheastResult != null) {
-            return@withContext offlineNortheastResult
         }
 
         // Layer 4: Final Fallback (Coordinates + Plus Code)

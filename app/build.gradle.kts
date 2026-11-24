@@ -14,8 +14,8 @@ android {
         applicationId = "com.gpsmapcamera.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 25
-        versionName = "1.2.5"
+        versionCode = 26
+        versionName = "1.2.6"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -23,13 +23,28 @@ android {
         }
     }
 
+    signingConfigs {
+        create("release") {
+            storeFile = file("${rootDir}/release.jks")
+            storePassword = "gpsmapcamera123"
+            keyAlias = "gpsmapcamera"
+            keyPassword = "gpsmapcamera123"
+            enableV1Signing = true
+            enableV2Signing = true
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+        debug {
+            signingConfig = signingConfigs.getByName("release")
         }
     }
     compileOptions {
