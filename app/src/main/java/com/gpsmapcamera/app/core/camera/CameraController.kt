@@ -51,6 +51,12 @@ import javax.inject.Singleton
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 
+enum class OrientationLockMode {
+    PORTRAIT,
+    AUTO,
+    LANDSCAPE
+}
+
 @Singleton
 class CameraController @Inject constructor(
     @ApplicationContext private val context: Context
@@ -72,6 +78,9 @@ class CameraController @Inject constructor(
         private set
 
     private var orientationEventListener: OrientationEventListener? = null
+    private val _orientationLock = MutableStateFlow(OrientationLockMode.PORTRAIT)
+    val orientationLock: StateFlow<OrientationLockMode> = _orientationLock.asStateFlow()
+
     private val _deviceRotation = MutableStateFlow(Surface.ROTATION_0)
     val deviceRotation: StateFlow<Int> = _deviceRotation.asStateFlow()
     val currentTargetRotation: Int get() = _deviceRotation.value
@@ -79,35 +88,65 @@ class CameraController @Inject constructor(
     private val _deviceRotationDegrees = MutableStateFlow(0f)
     val deviceRotationDegrees: StateFlow<Float> = _deviceRotationDegrees.asStateFlow()
 
+    fun setOrientationLock(mode: OrientationLockMode) {
+        _orientationLock.value = mode
+        when (mode) {
+            OrientationLockMode.PORTRAIT -> updateRotation(Surface.ROTATION_0, 0f)
+            OrientationLockMode.LANDSCAPE -> updateRotation(Surface.ROTATION_90, 270f)
+            OrientationLockMode.AUTO -> {
+                // Maintained until sensor orientation updates
+            }
+        }
+    }
+
+    fun cycleOrientationLock(): OrientationLockMode {
+        val next = when (_orientationLock.value) {
+            OrientationLockMode.PORTRAIT -> OrientationLockMode.AUTO
+            OrientationLockMode.AUTO -> OrientationLockMode.LANDSCAPE
+            OrientationLockMode.LANDSCAPE -> OrientationLockMode.PORTRAIT
+        }
+        setOrientationLock(next)
+        return next
+    }
+
+    private fun updateRotation(rotation: Int, degrees: Float) {
+        if (rotation != _deviceRotation.value) {
+            _deviceRotation.value = rotation
+            _deviceRotationDegrees.value = degrees
+            imageCapture?.targetRotation = rotation
+            try {
+                videoCapture?.targetRotation = rotation
+            } catch (_: Exception) {}
+        }
+    }
+
     fun setupOrientationListener(lifecycleOwner: LifecycleOwner) {
         if (orientationEventListener != null) return
 
         orientationEventListener = object : OrientationEventListener(context) {
             override fun onOrientationChanged(orientation: Int) {
-                if (orientation == ORIENTATION_UNKNOWN) return
+                if (_orientationLock.value != OrientationLockMode.AUTO) return
 
+                if (orientation == ORIENTATION_UNKNOWN) {
+                    // Default to portrait when phone is held flat or unknown
+                    updateRotation(Surface.ROTATION_0, 0f)
+                    return
+                }
+
+                // Strict landscape thresholds (must be clearly turned sideways by >= 65 degrees)
                 val rotation = when (orientation) {
-                    in 45..134 -> Surface.ROTATION_270
-                    in 135..224 -> Surface.ROTATION_180
-                    in 225..314 -> Surface.ROTATION_90
+                    in 65..115 -> Surface.ROTATION_270
+                    in 245..295 -> Surface.ROTATION_90
                     else -> Surface.ROTATION_0
                 }
 
                 val degrees = when (rotation) {
                     Surface.ROTATION_90 -> 270f
                     Surface.ROTATION_270 -> 90f
-                    Surface.ROTATION_180 -> 180f
                     else -> 0f
                 }
 
-                if (rotation != _deviceRotation.value) {
-                    _deviceRotation.value = rotation
-                    _deviceRotationDegrees.value = degrees
-                    imageCapture?.targetRotation = rotation
-                    try {
-                        videoCapture?.targetRotation = rotation
-                    } catch (_: Exception) {}
-                }
+                updateRotation(rotation, degrees)
             }
         }
 

@@ -106,6 +106,7 @@ class CameraViewModel @Inject constructor(
     private val brandLogo: Bitmap? by lazy { BrandLogo.bitmap(application) }
 
     val deviceRotationDegrees: StateFlow<Float> = cameraController.deviceRotationDegrees
+    val orientationLock: StateFlow<OrientationLockMode> = cameraController.orientationLock
 
     // ---- Live preview stamp (WYSIWYG) --------------------------------------------------------
     // The preview shows a bitmap drawn by the same PhotoStampRenderer that burns the saved photo,
@@ -134,6 +135,7 @@ class CameraViewModel @Inject constructor(
 
     private var lastGeocodedLat = 0.0
     private var lastGeocodedLon = 0.0
+    private var geocodingJob: Job? = null
     private var currentRecordingFile: File? = null
     private var timerJob: Job? = null
 
@@ -260,7 +262,8 @@ class CameraViewModel @Inject constructor(
             lastGeocodedLat = lat
             lastGeocodedLon = lon
 
-            viewModelScope.launch {
+            geocodingJob?.cancel()
+            geocodingJob = viewModelScope.launch {
                 val resolved = addressRepository.resolveAddress(lat, lon, isOnline)
                 _uiState.update {
                     it.copy(
@@ -338,19 +341,38 @@ class CameraViewModel @Inject constructor(
     }
 
     fun toggleConnectivityMode() {
-        _uiState.update {
-            val nextMode = if (it.connectivityMode == ConnectivityMode.AUTO) {
-                ConnectivityMode.FORCE_OFFLINE
-            } else {
-                ConnectivityMode.AUTO
-            }
-            it.copy(connectivityMode = nextMode)
+        val nextMode = if (_uiState.value.connectivityMode == ConnectivityMode.AUTO) {
+            ConnectivityMode.FORCE_OFFLINE
+        } else {
+            ConnectivityMode.AUTO
         }
-        // Force immediate re-resolve address + map for the new mode (offline uses the on-device database & tile cache).
+        _uiState.update { it.copy(connectivityMode = nextMode) }
+
+        // Immediately cancel any in-flight online geocoder request so it cannot overwrite the offline address
+        geocodingJob?.cancel()
         lastGeocodedLat = 0.0
         lastGeocodedLon = 0.0
         val gps = _uiState.value.gpsData
-        checkAndTriggerGeocoding(gps.latitude, gps.longitude, force = true)
+        if (gps.latitude != 0.0 || gps.longitude != 0.0) {
+            checkAndTriggerGeocoding(gps.latitude, gps.longitude, force = true)
+        }
+
+        val modeNotice = if (nextMode == ConnectivityMode.FORCE_OFFLINE) {
+            "Forced Offline Mode: On-Device Regional Database"
+        } else {
+            "Auto / Online Mode: Live Geocoder"
+        }
+        _uiState.update { it.copy(errorMessage = modeNotice) }
+    }
+
+    fun cycleOrientationLock() {
+        val next = cameraController.cycleOrientationLock()
+        val notice = when (next) {
+            OrientationLockMode.PORTRAIT -> "Orientation: Portrait (Locked)"
+            OrientationLockMode.AUTO -> "Orientation: Auto Rotate"
+            OrientationLockMode.LANDSCAPE -> "Orientation: Landscape (Locked)"
+        }
+        _uiState.update { it.copy(errorMessage = notice) }
     }
 
     fun toggleQr() {

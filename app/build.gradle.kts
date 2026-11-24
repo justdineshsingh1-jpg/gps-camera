@@ -14,8 +14,8 @@ android {
         applicationId = "com.gpsmapcamera.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 26
-        versionName = "1.2.6"
+        versionCode = 27
+        versionName = "1.2.7"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

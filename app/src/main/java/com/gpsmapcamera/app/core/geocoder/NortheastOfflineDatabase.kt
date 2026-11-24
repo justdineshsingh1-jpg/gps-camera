@@ -617,8 +617,8 @@ object NortheastOfflineDatabase {
 
         if (nearestPlace == null) return null
 
-        // If within 150 km of any regional place, provide rich offline address matching reference styling
-        return if (minDistanceKm <= 150.0) {
+        // If within 300 km of any regional place, provide rich offline address matching reference styling
+        return if (minDistanceKm <= 300.0) {
             val shortCode = OpenLocationCode.getShortCode(latitude, longitude)
             val cityPart = if (nearestPlace.name.contains(nearestPlace.city, ignoreCase = true) || nearestPlace.city.equals(nearestPlace.state, ignoreCase = true)) {
                 ""
@@ -626,8 +626,8 @@ object NortheastOfflineDatabase {
                 ", ${nearestPlace.city}"
             }
 
-            val formatted = if (minDistanceKm < 0.015) {
-                // Within 15 meters of exact landmark node center
+            val formatted = if (minDistanceKm < 0.005) {
+                // Within 5 meters of exact landmark node center
                 "$shortCode, ${nearestPlace.name}$cityPart, ${nearestPlace.state} ${nearestPlace.pincode}, India"
             } else {
                 // Dynamically display exact distance and cardinal direction so walking even a few steps visibly changes the address!

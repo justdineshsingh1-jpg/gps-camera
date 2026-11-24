@@ -46,6 +46,10 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.QrCode2
 import androidx.compose.material.icons.rounded.Satellite
+import androidx.compose.material.icons.rounded.ScreenRotation
+import androidx.compose.material.icons.rounded.StayCurrentLandscape
+import androidx.compose.material.icons.rounded.StayCurrentPortrait
+import com.gpsmapcamera.app.core.camera.OrientationLockMode
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.LinearProgressIndicator
@@ -140,6 +144,7 @@ fun CameraScreen(
     )
 
     val deviceRotationDegrees by viewModel.deviceRotationDegrees.collectAsState()
+    val orientationLock by viewModel.orientationLock.collectAsState()
     val animatedDeviceRotation by animateFloatAsState(
         targetValue = deviceRotationDegrees,
         animationSpec = tween(300),
@@ -285,6 +290,23 @@ fun CameraScreen(
                 horizontalArrangement = Arrangement.End,
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                // Orientation Mode Cycle (PORTRAIT -> AUTO -> LANDSCAPE)
+                val (orientIcon, orientLabel) = when (orientationLock) {
+                    OrientationLockMode.PORTRAIT -> Icons.Rounded.StayCurrentPortrait to "PORT"
+                    OrientationLockMode.AUTO -> Icons.Rounded.ScreenRotation to "AUTO"
+                    OrientationLockMode.LANDSCAPE -> Icons.Rounded.StayCurrentLandscape to "LAND"
+                }
+                ControlPill(
+                    icon = orientIcon,
+                    label = orientLabel,
+                    tint = if (orientationLock == OrientationLockMode.PORTRAIT) CameraColors.Amber else Color.White,
+                    active = orientationLock != OrientationLockMode.AUTO,
+                    activeColor = if (orientationLock == OrientationLockMode.PORTRAIT) CameraColors.Amber else CameraColors.Sky,
+                    onClick = { viewModel.cycleOrientationLock() }
+                )
+
+                Spacer(modifier = Modifier.size(8.dp))
+
                 // Night Mode Toggle
                 ControlChip(
                     icon = Icons.Rounded.NightsStay,
@@ -333,7 +355,6 @@ fun CameraScreen(
                     tint = Color.White,
                     active = uiState.exposureCompensation != 0,
                     activeColor = Color(0xFF0EA5E9),
-                    modifier = Modifier.rotate(animatedDeviceRotation),
                     onClick = {
                         val next = when (uiState.exposureCompensation) {
                             0 -> 1
@@ -372,7 +393,6 @@ fun CameraScreen(
                         MapTileType.GOOGLE_STREET -> CameraColors.Sky
                         MapTileType.GOOGLE_HYBRID -> CameraColors.Emerald
                     },
-                    modifier = Modifier.rotate(animatedDeviceRotation),
                     onClick = { viewModel.cycleMapTileType() }
                 )
             }
@@ -441,8 +461,7 @@ fun CameraScreen(
                                     text = label,
                                     color = if (isSelected) Color.Black else Color.White,
                                     fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.rotate(animatedDeviceRotation)
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
@@ -463,7 +482,6 @@ fun CameraScreen(
                             fontWeight = if (uiState.cameraMode == CameraMode.PHOTO) FontWeight.Bold else FontWeight.Normal,
                             fontSize = 13.sp,
                             modifier = Modifier
-                                .rotate(animatedDeviceRotation)
                                 .clickable { viewModel.setCameraMode(CameraMode.PHOTO) }
                                 .padding(horizontal = 16.dp, vertical = 4.dp)
                         )
@@ -473,7 +491,6 @@ fun CameraScreen(
                             fontWeight = if (uiState.cameraMode == CameraMode.VIDEO) FontWeight.Bold else FontWeight.Normal,
                             fontSize = 13.sp,
                             modifier = Modifier
-                                .rotate(animatedDeviceRotation)
                                 .clickable { viewModel.setCameraMode(CameraMode.VIDEO) }
                                 .padding(horizontal = 16.dp, vertical = 4.dp)
                         )
