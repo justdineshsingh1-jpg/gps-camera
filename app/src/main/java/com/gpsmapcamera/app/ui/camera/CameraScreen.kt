@@ -293,8 +293,8 @@ fun CameraScreen(
                 // Orientation Mode Cycle (PORTRAIT -> AUTO -> LANDSCAPE)
                 val (orientIcon, orientLabel) = when (orientationLock) {
                     OrientationLockMode.PORTRAIT -> Icons.Rounded.StayCurrentPortrait to "PORT"
-                    OrientationLockMode.AUTO -> Icons.Rounded.ScreenRotation to "AUTO"
                     OrientationLockMode.LANDSCAPE -> Icons.Rounded.StayCurrentLandscape to "LAND"
+                    else -> Icons.Rounded.ScreenRotation to "AUTO"
                 }
                 ControlPill(
                     icon = orientIcon,

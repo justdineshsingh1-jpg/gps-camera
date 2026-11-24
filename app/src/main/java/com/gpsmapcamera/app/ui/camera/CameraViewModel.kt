@@ -11,6 +11,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.viewModelScope
 import com.gpsmapcamera.app.core.camera.CameraController
+import com.gpsmapcamera.app.core.camera.OrientationLockMode
 import com.gpsmapcamera.app.core.camera.NightEnhancer
 import com.gpsmapcamera.app.core.connectivity.ConnectivityMode
 import com.gpsmapcamera.app.core.connectivity.NetworkObserver
@@ -369,8 +370,8 @@ class CameraViewModel @Inject constructor(
         val next = cameraController.cycleOrientationLock()
         val notice = when (next) {
             OrientationLockMode.PORTRAIT -> "Orientation: Portrait (Locked)"
-            OrientationLockMode.AUTO -> "Orientation: Auto Rotate"
             OrientationLockMode.LANDSCAPE -> "Orientation: Landscape (Locked)"
+            else -> "Orientation: Auto Rotate"
         }
         _uiState.update { it.copy(errorMessage = notice) }
     }
