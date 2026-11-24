@@ -60,11 +60,14 @@ class AddressRepository @Inject constructor(
             }
         }
 
-        // Layer 2: Offline Room Cache within 100 meters
-        val cached = findCachedAddressWithin100m(latitude, longitude)
+        // Layer 2: Offline Room Cache within 35 meters (with real-time dynamic Plus Code)
+        val cached = findCachedAddressWithin35m(latitude, longitude)
         if (cached != null) {
+            val shortCode = OpenLocationCode.getShortCode(latitude, longitude)
+            val cleaned = cached.formattedAddress.replaceFirst(Regex("^[a-zA-Z0-9]{4}\\+[a-zA-Z0-9]{2,3},\\s*"), "")
+            val dynamicAddress = "$shortCode, $cleaned"
             return@withContext ResolvedAddress(
-                formattedAddress = cached.formattedAddress,
+                formattedAddress = dynamicAddress,
                 city = cached.city,
                 state = cached.state,
                 country = cached.country,
@@ -72,10 +75,9 @@ class AddressRepository @Inject constructor(
             )
         }
 
-        // Layer 3: Embedded Northeast India Offline Database (Hills, Highways, Border regions)
+        // Layer 3: Embedded Regional Offline Database (Real-time dynamic distance, direction, and Plus Code)
         val offlineNortheastResult = NortheastOfflineDatabase.resolveOffline(latitude, longitude)
         if (offlineNortheastResult != null) {
-            cacheAddress(latitude, longitude, offlineNortheastResult)
             return@withContext offlineNortheastResult
         }
 
@@ -177,8 +179,8 @@ class AddressRepository @Inject constructor(
         }
     }
 
-    private suspend fun findCachedAddressWithin100m(lat: Double, lon: Double): CachedAddress? {
-        val delta = 0.001 // ~111 meters
+    private suspend fun findCachedAddressWithin35m(lat: Double, lon: Double): CachedAddress? {
+        val delta = 0.0004 // ~44 meters
         val candidates = addressDao.findCandidatesInBoundingBox(
             minLat = lat - delta,
             maxLat = lat + delta,
@@ -189,7 +191,7 @@ class AddressRepository @Inject constructor(
         val results = FloatArray(1)
         for (candidate in candidates) {
             Location.distanceBetween(lat, lon, candidate.latitude, candidate.longitude, results)
-            if (results[0] <= 100.0f) {
+            if (results[0] <= 35.0f) {
                 return candidate
             }
         }

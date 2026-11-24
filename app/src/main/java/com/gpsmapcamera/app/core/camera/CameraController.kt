@@ -33,8 +33,14 @@ import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
+import android.view.OrientationEventListener
+import android.view.Surface
+import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
 import java.nio.ByteBuffer
@@ -65,10 +71,62 @@ class CameraController @Inject constructor(
     var isNightMode: Boolean = false
         private set
 
+    private var orientationEventListener: OrientationEventListener? = null
+    private val _deviceRotation = MutableStateFlow(Surface.ROTATION_0)
+    val deviceRotation: StateFlow<Int> = _deviceRotation.asStateFlow()
+    val currentTargetRotation: Int get() = _deviceRotation.value
+
+    private val _deviceRotationDegrees = MutableStateFlow(0f)
+    val deviceRotationDegrees: StateFlow<Float> = _deviceRotationDegrees.asStateFlow()
+
+    fun setupOrientationListener(lifecycleOwner: LifecycleOwner) {
+        if (orientationEventListener != null) return
+
+        orientationEventListener = object : OrientationEventListener(context) {
+            override fun onOrientationChanged(orientation: Int) {
+                if (orientation == ORIENTATION_UNKNOWN) return
+
+                val rotation = when (orientation) {
+                    in 45..134 -> Surface.ROTATION_270
+                    in 135..224 -> Surface.ROTATION_180
+                    in 225..314 -> Surface.ROTATION_90
+                    else -> Surface.ROTATION_0
+                }
+
+                val degrees = when (rotation) {
+                    Surface.ROTATION_90 -> 270f
+                    Surface.ROTATION_270 -> 90f
+                    Surface.ROTATION_180 -> 180f
+                    else -> 0f
+                }
+
+                if (rotation != _deviceRotation.value) {
+                    _deviceRotation.value = rotation
+                    _deviceRotationDegrees.value = degrees
+                    imageCapture?.targetRotation = rotation
+                    try {
+                        videoCapture?.targetRotation = rotation
+                    } catch (_: Exception) {}
+                }
+            }
+        }
+
+        lifecycleOwner.lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onResume(owner: LifecycleOwner) {
+                orientationEventListener?.enable()
+            }
+            override fun onPause(owner: LifecycleOwner) {
+                orientationEventListener?.disable()
+            }
+        })
+        orientationEventListener?.enable()
+    }
+
     suspend fun initializeCamera(
         lifecycleOwner: LifecycleOwner,
         previewView: PreviewView
     ) = suspendCancellableCoroutine { continuation ->
+        setupOrientationListener(lifecycleOwner)
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         cameraProviderFuture.addListener({
             try {
@@ -105,18 +163,21 @@ class CameraController @Inject constructor(
             it.setSurfaceProvider(previewView.surfaceProvider)
         }
 
-        // 2. Configure standard ImageCapture (High Quality & Flash Mode)
+        // 2. Configure standard ImageCapture (High Quality, Flash Mode & Physical Device Target Rotation)
         val imageCaptureBuilder = ImageCapture.Builder()
             .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
             .setFlashMode(flashMode)
+            .setTargetRotation(currentTargetRotation)
 
         imageCapture = imageCaptureBuilder.build()
 
-        // 3. Configure VideoCapture
+        // 3. Configure VideoCapture with Physical Device Target Rotation
         val recorder = Recorder.Builder()
             .setQualitySelector(QualitySelector.from(Quality.HD, FallbackStrategy.higherQualityOrLowerThan(Quality.SD)))
             .build()
-        videoCapture = VideoCapture.withOutput(recorder)
+        videoCapture = VideoCapture.Builder(recorder)
+            .setTargetRotation(currentTargetRotation)
+            .build()
 
         // 4. Bind camera use cases with standard baseSelector
         // VideoCapture and ImageCapture together are fully supported on baseSelector.
@@ -214,7 +275,8 @@ class CameraController @Inject constructor(
 
     suspend fun capturePhoto(fallbackBitmap: Bitmap? = null): Bitmap = suspendCancellableCoroutine { continuation ->
         val capture = imageCapture ?: run {
-            val recovered = fallbackBitmap ?: Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
+            val recovered = fallbackBitmap?.let { rotateFallbackIfNeeded(it) }
+                ?: Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
             continuation.resume(recovered)
             return@suspendCancellableCoroutine
         }
@@ -254,18 +316,32 @@ class CameraController @Inject constructor(
                         continuation.resume(bitmap)
                     } catch (e: Exception) {
                         image.close()
-                        val recovered = fallbackBitmap ?: Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
+                        val recovered = fallbackBitmap?.let { rotateFallbackIfNeeded(it) }
+                            ?: Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
                         continuation.resume(recovered)
                     }
                 }
 
                 override fun onError(exception: ImageCaptureException) {
                     restoreVolume()
-                    val recovered = fallbackBitmap ?: Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
+                    val recovered = fallbackBitmap?.let { rotateFallbackIfNeeded(it) }
+                        ?: Bitmap.createBitmap(1920, 1080, Bitmap.Config.ARGB_8888)
                     continuation.resume(recovered)
                 }
             }
         )
+    }
+
+    private fun rotateFallbackIfNeeded(bitmap: Bitmap): Bitmap {
+        val degrees = when (currentTargetRotation) {
+            Surface.ROTATION_90 -> 270f
+            Surface.ROTATION_270 -> 90f
+            Surface.ROTATION_180 -> 180f
+            else -> 0f
+        }
+        if (degrees == 0f) return bitmap
+        val matrix = Matrix().apply { postRotate(degrees) }
+        return Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
     }
 
     @SuppressLint("MissingPermission")

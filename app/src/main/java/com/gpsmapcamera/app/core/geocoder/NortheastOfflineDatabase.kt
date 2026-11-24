@@ -4,6 +4,7 @@ import com.gpsmapcamera.app.core.location.OpenLocationCode
 import java.util.Locale
 import kotlin.math.atan2
 import kotlin.math.cos
+import kotlin.math.roundToInt
 import kotlin.math.sin
 import kotlin.math.sqrt
 
@@ -445,7 +446,154 @@ object NortheastOfflineDatabase {
         NortheastPlace("Seelampur", "Delhi", "North East Delhi", "Delhi", "110053", 28.6685, 77.2685),
         NortheastPlace("Yamuna Vihar", "Delhi", "North East Delhi", "Delhi", "110053", 28.6985, 77.2715),
         NortheastPlace("Bhajanpura", "Delhi", "North East Delhi", "Delhi", "110053", 28.7015, 77.2615),
-        NortheastPlace("Karawal Nagar", "Delhi", "North East Delhi", "Delhi", "110094", 28.7285, 77.2785)
+        NortheastPlace("Karawal Nagar", "Delhi", "North East Delhi", "Delhi", "110094", 28.7285, 77.2785),
+
+        // =========================================================================
+        // BIHAR : Major Districts, Towns & Localities
+        // =========================================================================
+        // Patna District
+        NortheastPlace("Gandhi Maidan", "Patna", "Patna", "Bihar", "800001", 25.6207, 85.1456),
+        NortheastPlace("Bailey Road, Raja Bazar", "Patna", "Patna", "Bihar", "800014", 25.6095, 85.0885),
+        NortheastPlace("Boring Road, Anandpuri", "Patna", "Patna", "Bihar", "800001", 25.6185, 85.1185),
+        NortheastPlace("Kankarbagh, Colony More", "Patna", "Patna", "Bihar", "800020", 25.5925, 85.1485),
+        NortheastPlace("Patna Sahib, Gurudwara", "Patna", "Patna", "Bihar", "800008", 25.5895, 85.2285),
+        NortheastPlace("Danapur Cantt, Khagaul", "Danapur", "Patna", "Bihar", "801503", 25.6325, 85.0455),
+        NortheastPlace("Patliputra Colony", "Patna", "Patna", "Bihar", "800013", 25.6315, 85.1085),
+        NortheastPlace("Phulwari Sharif, AIIMS Rd", "Patna", "Patna", "Bihar", "801505", 25.5685, 85.0785),
+        NortheastPlace("Bihta, IIT Patna", "Bihta", "Patna", "Bihar", "801103", 25.5385, 84.8585),
+        NortheastPlace("Fatuha, Triveni", "Fatuha", "Patna", "Bihar", "803201", 25.5085, 85.3185),
+        NortheastPlace("Bakhtiyarpur Junction", "Bakhtiyarpur", "Patna", "Bihar", "803212", 25.4585, 85.5285),
+        NortheastPlace("Mokama", "Mokama", "Patna", "Bihar", "803302", 25.3985, 85.9185),
+
+        // Gaya & Magadh Division
+        NortheastPlace("Bodh Gaya, Mahabodhi Temple", "Bodh Gaya", "Gaya", "Bihar", "824231", 24.6958, 84.9914),
+        NortheastPlace("Civil Lines, Tower Chowk", "Gaya", "Gaya", "Bihar", "823001", 24.7955, 85.0085),
+        NortheastPlace("Vishnupad Temple, Chand Chaura", "Gaya", "Gaya", "Bihar", "823001", 24.7815, 85.0115),
+        NortheastPlace("Sherghati, GT Road", "Sherghati", "Gaya", "Bihar", "824211", 24.5685, 84.7885),
+        NortheastPlace("Tekari", "Tekari", "Gaya", "Bihar", "824236", 24.9385, 84.8285),
+        NortheastPlace("Jehanabad Court", "Jehanabad", "Jehanabad", "Bihar", "804408", 25.2155, 84.9885),
+        NortheastPlace("Makhdumpur", "Makhdumpur", "Jehanabad", "Bihar", "804422", 25.0785, 84.9785),
+        NortheastPlace("Arwal", "Arwal", "Arwal", "Bihar", "804401", 25.2485, 84.6785),
+        NortheastPlace("Nawada, Main Market", "Nawada", "Nawada", "Bihar", "805110", 24.8885, 85.5385),
+        NortheastPlace("Rajauli, NH 31", "Rajauli", "Nawada", "Bihar", "805125", 24.6485, 85.5085),
+        NortheastPlace("Aurangabad, Ramesh Chowk", "Aurangabad", "Aurangabad", "Bihar", "824101", 24.7555, 84.3785),
+        NortheastPlace("Daudnagar", "Daudnagar", "Aurangabad", "Bihar", "824143", 25.0385, 84.4085),
+
+        // Nalanda Division
+        NortheastPlace("Bihar Sharif, Hospital More", "Bihar Sharif", "Nalanda", "Bihar", "803101", 25.1985, 85.5185),
+        NortheastPlace("Rajgir, Kund Area", "Rajgir", "Nalanda", "Bihar", "803116", 25.0285, 85.4185),
+        NortheastPlace("Nalanda University Ruins", "Nalanda", "Nalanda", "Bihar", "803111", 25.1385, 85.4485),
+        NortheastPlace("Hilsa", "Hilsa", "Nalanda", "Bihar", "801302", 25.3185, 85.2785),
+
+        // Tirhut Division : Muzaffarpur, Vaishali, Champaran, Sitamarhi
+        NortheastPlace("Mithanpura, Club Road", "Muzaffarpur", "Muzaffarpur", "Bihar", "842002", 26.1185, 85.3985),
+        NortheastPlace("Brahampura, Tower Chowk", "Muzaffarpur", "Muzaffarpur", "Bihar", "842003", 26.1385, 85.3685),
+        NortheastPlace("Saraiya, Motipur Road", "Saraiya", "Muzaffarpur", "Bihar", "843126", 26.0685, 85.1685),
+        NortheastPlace("Hajipur, Ramashish Chowk", "Hajipur", "Vaishali", "Bihar", "844101", 25.6885, 85.2185),
+        NortheastPlace("Vaishali, Ashoka Pillar", "Vaishali", "Vaishali", "Bihar", "844128", 25.9985, 85.1285),
+        NortheastPlace("Lalganj", "Lalganj", "Vaishali", "Bihar", "844121", 25.8685, 85.1785),
+        NortheastPlace("Mahua, Bazar", "Mahua", "Vaishali", "Bihar", "844122", 25.8285, 85.3885),
+        NortheastPlace("Motihari, Chhatauni", "Motihari", "East Champaran", "Bihar", "845401", 26.6485, 84.9185),
+        NortheastPlace("Raxaul, Nepal Border", "Raxaul", "East Champaran", "Bihar", "845305", 26.9785, 84.7085),
+        NortheastPlace("Chakia", "Chakia", "East Champaran", "Bihar", "845412", 26.4185, 85.0485),
+        NortheastPlace("Bettiah, Supriya Cinema Rd", "Bettiah", "West Champaran", "Bihar", "845438", 26.8085, 84.5085),
+        NortheastPlace("Bagaha, Gandak", "Bagaha", "West Champaran", "Bihar", "845101", 27.0985, 84.0985),
+        NortheastPlace("Sitamarhi, Mehsaul Chowk", "Sitamarhi", "Sitamarhi", "Bihar", "843302", 26.5985, 85.4885),
+        NortheastPlace("Dumra, Collectorate", "Dumra", "Sitamarhi", "Bihar", "843315", 26.5685, 85.5085),
+        NortheastPlace("Sheohar", "Sheohar", "Sheohar", "Bihar", "843329", 26.5185, 85.2985),
+
+        // Saran Division : Chhapra, Siwan, Gopalganj
+        NortheastPlace("Chhapra, Municipality Chowk", "Chhapra", "Saran", "Bihar", "841301", 25.7855, 84.7455),
+        NortheastPlace("Sonpur, Harihar Nath", "Sonpur", "Saran", "Bihar", "841101", 25.6985, 85.1885),
+        NortheastPlace("Siwan, Babunia More", "Siwan", "Siwan", "Bihar", "841226", 26.2285, 84.3585),
+        NortheastPlace("Mairwa", "Mairwa", "Siwan", "Bihar", "841239", 26.2385, 84.1585),
+        NortheastPlace("Gopalganj, Post Office Chowk", "Gopalganj", "Gopalganj", "Bihar", "841428", 26.4685, 84.4385),
+        NortheastPlace("Mirganj", "Mirganj", "Gopalganj", "Bihar", "841438", 26.4285, 84.3385),
+
+        // Darbhanga & Mithila Division
+        NortheastPlace("Darbhanga, Tower Chowk", "Darbhanga", "Darbhanga", "Bihar", "846004", 26.1555, 85.8985),
+        NortheastPlace("Laheriasarai, Court More", "Darbhanga", "Darbhanga", "Bihar", "846001", 26.1285, 85.9085),
+        NortheastPlace("Benipur", "Benipur", "Darbhanga", "Bihar", "847103", 26.1485, 86.1185),
+        NortheastPlace("Madhubani, Station Chowk", "Madhubani", "Madhubani", "Bihar", "847211", 26.3585, 86.0785),
+        NortheastPlace("Jhanjharpur", "Jhanjharpur", "Madhubani", "Bihar", "847404", 26.2685, 86.2785),
+        NortheastPlace("Benipatti", "Benipatti", "Madhubani", "Bihar", "847223", 26.4485, 85.9285),
+        NortheastPlace("Samastipur, Magardahi Ghat", "Samastipur", "Samastipur", "Bihar", "848101", 25.8585, 85.7885),
+        NortheastPlace("Dalsinghsarai", "Dalsinghsarai", "Samastipur", "Bihar", "848114", 25.6685, 85.8385),
+        NortheastPlace("Rosera", "Rosera", "Samastipur", "Bihar", "848210", 25.7485, 86.0185),
+
+        // Kosi & Purnia Division
+        NortheastPlace("Saharsa, D.B. Road", "Saharsa", "Saharsa", "Bihar", "852201", 25.8855, 86.5985),
+        NortheastPlace("Simri Bakhtiarpur", "Simri Bakhtiarpur", "Saharsa", "Bihar", "852127", 25.7185, 86.5885),
+        NortheastPlace("Supaul, Station Road", "Supaul", "Supaul", "Bihar", "852131", 26.1185, 86.6085),
+        NortheastPlace("Triveniganj", "Triveniganj", "Supaul", "Bihar", "852139", 26.1085, 86.8485),
+        NortheastPlace("Madhepura, College Chowk", "Madhepura", "Madhepura", "Bihar", "852113", 25.9285, 86.7985),
+        NortheastPlace("Purnia, Line Bazar", "Purnia", "Purnia", "Bihar", "854301", 25.7815, 87.4785),
+        NortheastPlace("Gulabbagh, Mandi", "Purnia", "Purnia", "Bihar", "854326", 25.7785, 87.5285),
+        NortheastPlace("Kasba", "Kasba", "Purnia", "Bihar", "854330", 25.8585, 87.5385),
+        NortheastPlace("Banmankhi", "Banmankhi", "Purnia", "Bihar", "854202", 25.8985, 87.1685),
+        NortheastPlace("Katihar, Mirchaibari", "Katihar", "Katihar", "Bihar", "854105", 25.5485, 87.5785),
+        NortheastPlace("Barsoi Junction", "Barsoi", "Katihar", "Bihar", "854317", 25.6885, 87.8985),
+        NortheastPlace("Manihari, Ganga Ghat", "Manihari", "Katihar", "Bihar", "854113", 25.3485, 87.6285),
+        NortheastPlace("Araria, Zero Mile", "Araria", "Araria", "Bihar", "854311", 26.1485, 87.5185),
+        NortheastPlace("Forbesganj, Sadar", "Forbesganj", "Araria", "Bihar", "854318", 26.3085, 87.2585),
+        NortheastPlace("Kishanganj, Caltex Chowk", "Kishanganj", "Kishanganj", "Bihar", "855107", 26.0985, 87.9485),
+        NortheastPlace("Bahadurganj", "Bahadurganj", "Kishanganj", "Bihar", "855101", 26.2685, 87.8185),
+
+        // Bhagalpur & Munger Division
+        NortheastPlace("Bhagalpur, Tilka Manjhi Chowk", "Bhagalpur", "Bhagalpur", "Bihar", "812001", 25.2485, 86.9885),
+        NortheastPlace("Zero Mile, Barari", "Bhagalpur", "Bhagalpur", "Bihar", "812003", 25.2585, 87.0385),
+        NortheastPlace("Nathnagar", "Bhagalpur", "Bhagalpur", "Bihar", "812006", 25.2285, 86.9385),
+        NortheastPlace("Kahalgaon, NTPC", "Kahalgaon", "Bhagalpur", "Bihar", "813203", 25.2685, 87.2385),
+        NortheastPlace("Banka, Sadar", "Banka", "Banka", "Bihar", "813102", 24.8885, 86.9185),
+        NortheastPlace("Munger, Fort Area", "Munger", "Munger", "Bihar", "811201", 25.3785, 86.4785),
+        NortheastPlace("Jamalpur, Railway Workshop", "Jamalpur", "Munger", "Bihar", "811214", 25.3185, 86.4985),
+        NortheastPlace("Begusarai, Harhar Mahadev Chowk", "Begusarai", "Begusarai", "Bihar", "851101", 25.4285, 86.1385),
+        NortheastPlace("Barauni, Refinary Town", "Barauni", "Begusarai", "Bihar", "851112", 25.4785, 85.9785),
+        NortheastPlace("Teghra", "Teghra", "Begusarai", "Bihar", "851133", 25.4785, 85.9185),
+        NortheastPlace("Khagaria, Station Chowk", "Khagaria", "Khagaria", "Bihar", "851204", 25.5085, 86.4785),
+        NortheastPlace("Gogri Jamalpur", "Khagaria", "Khagaria", "Bihar", "851203", 25.4285, 86.6085),
+        NortheastPlace("Lakhisarai, Vidyapeeth Chowk", "Lakhisarai", "Lakhisarai", "Bihar", "811311", 25.1785, 86.0985),
+        NortheastPlace("Barahiya", "Barahiya", "Lakhisarai", "Bihar", "811302", 25.2885, 86.0185),
+        NortheastPlace("Sheikhpura, Katra Chowk", "Sheikhpura", "Sheikhpura", "Bihar", "811105", 25.1385, 85.8585),
+        NortheastPlace("Barbigha", "Barbigha", "Sheikhpura", "Bihar", "811101", 25.2085, 85.7385),
+        NortheastPlace("Jamui, Kachahari More", "Jamui", "Jamui", "Bihar", "811307", 24.9185, 86.2285),
+        NortheastPlace("Jhajha Junction", "Jhajha", "Jamui", "Bihar", "811308", 24.7785, 86.3785),
+
+        // Shahabad Division : Bhojpur, Buxar, Rohtas, Kaimur
+        NortheastPlace("Ara, Gopi Patwa Chowk", "Ara", "Bhojpur", "Bihar", "802301", 25.5585, 84.6685),
+        NortheastPlace("Jagdishpur", "Jagdishpur", "Bhojpur", "Bihar", "802158", 25.4785, 84.4185),
+        NortheastPlace("Piro", "Piro", "Bhojpur", "Bihar", "802207", 25.3385, 84.4185),
+        NortheastPlace("Buxar, Golamber Chowk", "Buxar", "Buxar", "Bihar", "802101", 25.5785, 83.9785),
+        NortheastPlace("Dumraon", "Dumraon", "Buxar", "Bihar", "802119", 25.5485, 84.1585),
+        NortheastPlace("Sasaram, Post Office More", "Sasaram", "Rohtas", "Bihar", "821115", 24.9485, 84.0285),
+        NortheastPlace("Dehri-on-Sone, Thana Chowk", "Dehri", "Rohtas", "Bihar", "821305", 24.9085, 84.1885),
+        NortheastPlace("Bikramganj", "Bikramganj", "Rohtas", "Bihar", "802212", 25.2085, 84.2585),
+        NortheastPlace("Bhabua, Ekta Chowk", "Bhabua", "Kaimur", "Bihar", "821101", 25.0485, 83.6185),
+        NortheastPlace("Mohania, NH 19", "Mohania", "Kaimur", "Bihar", "821109", 25.1785, 83.6285),
+
+        // =========================================================================
+        // WEST BENGAL : North Bengal Corridor & Major Districts
+        // =========================================================================
+        NortheastPlace("Sevoke Road, Siliguri", "Siliguri", "Darjeeling", "West Bengal", "734001", 26.7271, 88.4312),
+        NortheastPlace("Bagdogra, Airport More", "Siliguri", "Darjeeling", "West Bengal", "734014", 26.6985, 88.3185),
+        NortheastPlace("Matigara, City Centre", "Siliguri", "Darjeeling", "West Bengal", "734010", 26.7185, 88.3885),
+        NortheastPlace("Darjeeling, Mall Road", "Darjeeling", "Darjeeling", "West Bengal", "734101", 27.0410, 88.2663),
+        NortheastPlace("Kurseong, Hill Cart Rd", "Kurseong", "Darjeeling", "West Bengal", "734203", 26.8815, 88.2785),
+        NortheastPlace("Kalimpong, Dambar Chowk", "Kalimpong", "Kalimpong", "West Bengal", "734301", 27.0685, 88.4785),
+        NortheastPlace("Jalpaiguri, Kadamtala", "Jalpaiguri", "Jalpaiguri", "West Bengal", "735101", 26.5415, 88.7185),
+        NortheastPlace("Malbazar, Dooars", "Malbazar", "Jalpaiguri", "West Bengal", "735221", 26.8615, 88.7485),
+        NortheastPlace("Cooch Behar, Rajbari More", "Cooch Behar", "Cooch Behar", "West Bengal", "736101", 26.3215, 89.4485),
+        NortheastPlace("Dinhata", "Dinhata", "Cooch Behar", "West Bengal", "736135", 26.1315, 89.4685),
+        NortheastPlace("Alipurduar, Chowpathi", "Alipurduar", "Alipurduar", "West Bengal", "736121", 26.4915, 89.5285),
+        NortheastPlace("Birpara, Dooars", "Birpara", "Alipurduar", "West Bengal", "735204", 26.7115, 89.1285),
+        NortheastPlace("Malda, English Bazar", "Malda", "Malda", "West Bengal", "732101", 25.0085, 88.1485),
+        NortheastPlace("Raiganj, Siliguri More", "Raiganj", "Uttar Dinajpur", "West Bengal", "733134", 25.6185, 88.1285),
+        NortheastPlace("Islampur, NH 27", "Islampur", "Uttar Dinajpur", "West Bengal", "733202", 26.2685, 88.1985),
+        NortheastPlace("Balurghat, Bus Stand", "Balurghat", "Dakshin Dinajpur", "West Bengal", "733101", 25.2285, 88.7685),
+        NortheastPlace("Kolkata, Salt Lake Sector 5", "Kolkata", "North 24 Parganas", "West Bengal", "700091", 22.5802, 88.4328),
+        NortheastPlace("Howrah Station, Foreshore", "Howrah", "Howrah", "West Bengal", "711101", 22.5855, 88.3415),
+        NortheastPlace("New Town, Action Area 1", "Kolkata", "North 24 Parganas", "West Bengal", "700156", 22.5895, 88.4715),
+        NortheastPlace("Dum Dum, Airport More", "Kolkata", "North 24 Parganas", "West Bengal", "700052", 22.6515, 88.4415)
     )
 
     /**
@@ -472,21 +620,21 @@ object NortheastOfflineDatabase {
         // If within 150 km of any regional place, provide rich offline address matching reference styling
         return if (minDistanceKm <= 150.0) {
             val shortCode = OpenLocationCode.getShortCode(latitude, longitude)
+            val cityPart = if (nearestPlace.name.contains(nearestPlace.city, ignoreCase = true) || nearestPlace.city.equals(nearestPlace.state, ignoreCase = true)) {
+                ""
+            } else {
+                ", ${nearestPlace.city}"
+            }
 
-            val formatted = if (minDistanceKm <= 3.0) {
-                val cityPart = if (nearestPlace.name.contains(nearestPlace.city, ignoreCase = true) || nearestPlace.city.equals(nearestPlace.state, ignoreCase = true)) {
-                    ""
-                } else {
-                    ", ${nearestPlace.city}"
-                }
+            val formatted = if (minDistanceKm < 0.05) {
+                // Within 50 meters of exact landmark center
                 "$shortCode, ${nearestPlace.name}$cityPart, ${nearestPlace.state} ${nearestPlace.pincode}, India"
             } else {
-                val cityPart = if (nearestPlace.name.contains(nearestPlace.city, ignoreCase = true) || nearestPlace.city.equals(nearestPlace.state, ignoreCase = true)) {
-                    ""
-                } else {
-                    ", ${nearestPlace.city}"
-                }
-                "$shortCode, Near ${nearestPlace.name}$cityPart, ${nearestPlace.state} ${nearestPlace.pincode}, India"
+                // Dynamically display exact distance and cardinal direction so address reflects movement offline
+                val distMeters = (minDistanceKm * 1000).roundToInt()
+                val dir = getCardinalDirection(nearestPlace.latitude, nearestPlace.longitude, latitude, longitude)
+                val distStr = if (distMeters < 1000) "${distMeters}m" else String.format(Locale.US, "%.1f km", minDistanceKm)
+                "$shortCode, $distStr $dir of ${nearestPlace.name}$cityPart, ${nearestPlace.state} ${nearestPlace.pincode}, India"
             }
 
             ResolvedAddress(

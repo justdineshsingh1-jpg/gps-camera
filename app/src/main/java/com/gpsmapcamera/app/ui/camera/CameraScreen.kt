@@ -67,6 +67,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.Offset
 import kotlinx.coroutines.launch
 import androidx.compose.ui.graphics.Brush
@@ -134,6 +135,13 @@ fun CameraScreen(
         targetValue = switchTurns * 180f,
         animationSpec = tween(350),
         label = "switchCameraRotation"
+    )
+
+    val deviceRotationDegrees by viewModel.deviceRotationDegrees.collectAsState()
+    val animatedDeviceRotation by animateFloatAsState(
+        targetValue = deviceRotationDegrees,
+        animationSpec = tween(300),
+        label = "deviceRotation"
     )
 
     LaunchedEffect(uiState.errorMessage) {
@@ -282,6 +290,7 @@ fun CameraScreen(
                     tint = if (uiState.isNightMode) CameraColors.Moon else Color(0xFFC7D2FE),
                     active = uiState.isNightMode,
                     activeBrush = Brush.linearGradient(listOf(CameraColors.Indigo, Color(0xFF7C3AED))),
+                    iconRotation = animatedDeviceRotation,
                     onClick = {
                         viewModel.toggleNightMode()
                         Toast.makeText(
@@ -305,6 +314,7 @@ fun CameraScreen(
                     icon = flashIcon,
                     contentDescription = "Flash: ${uiState.flashMode.name.lowercase()}",
                     tint = flashTint,
+                    iconRotation = animatedDeviceRotation,
                     onClick = { viewModel.cycleFlashMode() }
                 )
 
@@ -321,6 +331,7 @@ fun CameraScreen(
                     tint = Color.White,
                     active = uiState.exposureCompensation != 0,
                     activeColor = Color(0xFF0EA5E9),
+                    modifier = Modifier.rotate(animatedDeviceRotation),
                     onClick = {
                         val next = when (uiState.exposureCompensation) {
                             0 -> 1
@@ -339,6 +350,7 @@ fun CameraScreen(
                     icon = Icons.Rounded.QrCode2,
                     contentDescription = if (uiState.showQr) "Hide QR" else "Show QR",
                     tint = if (uiState.showQr) CameraColors.Emerald else Color(0xFF9CA3AF),
+                    iconRotation = animatedDeviceRotation,
                     onClick = { viewModel.toggleQr() }
                 )
 
@@ -358,6 +370,7 @@ fun CameraScreen(
                         MapTileType.GOOGLE_STREET -> CameraColors.Sky
                         MapTileType.GOOGLE_HYBRID -> CameraColors.Emerald
                     },
+                    modifier = Modifier.rotate(animatedDeviceRotation),
                     onClick = { viewModel.cycleMapTileType() }
                 )
             }
@@ -423,7 +436,8 @@ fun CameraScreen(
                                     text = label,
                                     color = if (isSelected) Color.Black else Color.White,
                                     fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.rotate(animatedDeviceRotation)
                                 )
                             }
                         }
@@ -444,6 +458,7 @@ fun CameraScreen(
                             fontWeight = if (uiState.cameraMode == CameraMode.PHOTO) FontWeight.Bold else FontWeight.Normal,
                             fontSize = 13.sp,
                             modifier = Modifier
+                                .rotate(animatedDeviceRotation)
                                 .clickable { viewModel.setCameraMode(CameraMode.PHOTO) }
                                 .padding(horizontal = 16.dp, vertical = 4.dp)
                         )
@@ -453,6 +468,7 @@ fun CameraScreen(
                             fontWeight = if (uiState.cameraMode == CameraMode.VIDEO) FontWeight.Bold else FontWeight.Normal,
                             fontSize = 13.sp,
                             modifier = Modifier
+                                .rotate(animatedDeviceRotation)
                                 .clickable { viewModel.setCameraMode(CameraMode.VIDEO) }
                                 .padding(horizontal = 16.dp, vertical = 4.dp)
                         )
@@ -477,12 +493,14 @@ fun CameraScreen(
                             tint = if (uiState.isRecordingPaused) CameraColors.Emerald else CameraColors.Amber,
                             onClick = { viewModel.pauseResumeVideoRecording() },
                             size = 56,
-                            iconSize = 28
+                            iconSize = 28,
+                            iconRotation = animatedDeviceRotation
                         )
                     } else {
                         GalleryThumbnailButton(
                             uri = uiState.lastCapturedUri,
                             isVideo = uiState.lastCapturedIsVideo,
+                            modifier = Modifier.rotate(animatedDeviceRotation),
                             onClick = onOpenGallery
                         )
                     }
@@ -491,6 +509,7 @@ fun CameraScreen(
                         mode = uiState.cameraMode,
                         isRecording = uiState.isRecording,
                         isCapturing = uiState.isCapturing,
+                        modifier = Modifier.rotate(animatedDeviceRotation),
                         onClick = {
                             if (uiState.cameraMode == CameraMode.PHOTO) {
                                 viewModel.capturePhoto(previewView?.bitmap)
@@ -508,7 +527,7 @@ fun CameraScreen(
                         enabled = !uiState.isRecording,
                         size = 56,
                         iconSize = 28,
-                        iconRotation = switchRotation,
+                        iconRotation = switchRotation + animatedDeviceRotation,
                         onClick = {
                             previewView?.let {
                                 switchTurns += 1f

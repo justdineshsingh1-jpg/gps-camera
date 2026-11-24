@@ -105,6 +105,8 @@ class CameraViewModel @Inject constructor(
 
     private val brandLogo: Bitmap? by lazy { BrandLogo.bitmap(application) }
 
+    val deviceRotationDegrees: StateFlow<Float> = cameraController.deviceRotationDegrees
+
     // ---- Live preview stamp (WYSIWYG) --------------------------------------------------------
     // The preview shows a bitmap drawn by the same PhotoStampRenderer that burns the saved photo,
     // at the preview's width, so layout, relative size and elements are identical.
@@ -250,7 +252,8 @@ class CameraViewModel @Inject constructor(
     private fun checkAndTriggerGeocoding(lat: Double, lon: Double, force: Boolean = false) {
         if (lat == 0.0 && lon == 0.0) return
 
-        val moved = abs(lat - lastGeocodedLat) > 0.0002 || abs(lon - lastGeocodedLon) > 0.0002
+        // 0.00004 deg is ~4.4 meters, ensuring real-time address updates even when walking offline
+        val moved = abs(lat - lastGeocodedLat) > 0.00004 || abs(lon - lastGeocodedLon) > 0.00004
         if (moved || force || _uiState.value.gpsData.addressLine == null) {
             lastGeocodedLat = lat
             lastGeocodedLon = lon
